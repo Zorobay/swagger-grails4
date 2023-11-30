@@ -1,0 +1,27 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+max_line_length = 160
+trim_trailing_whitespace = true
+ij_visual_guides = 160
+indent_style = space
+
+[*.{groovy,java}]
+indent_size = 4
+ij_continuation_indent_size = 4
+ij_groovy_blank_lines_after_package = 1
+ij_java_blank_lines_after_package = 1
+ij_groovy_class_count_to_use_import_on_demand = 100
+
+[*.groovy]
+ij_groovy_indent_label_blocks = true
+ij_any_label_indent_size = 4
+ij_groovy_layout_static_imports_separately = true
+ij_groovy_imports_layout = *,|,javax.**,java.**,|,$*
+
+[*.{js,json}]
+indent_size = 4
+ij_javascript_use_double_quotes = true
