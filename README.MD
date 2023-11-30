@@ -6,10 +6,10 @@
 [ ]
 ## Links
 
-## OpenAPI v3 spec
+### OpenAPI v3 spec
 https://github.com/OAI/OpenAPI-Specification/blob/3.1.0/versions/3.1.0.md
 
-## Swagger annotation docs
+### Swagger annotation docs
 
 https://github.com/swagger-api/swagger-core/wiki/Swagger-2.X---Annotations
 ### Swagger UI JS library

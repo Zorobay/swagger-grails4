@@ -37,9 +37,9 @@ dependencies {
     compile "org.springframework.boot:spring-boot-starter-tomcat"
     compile "org.grails:grails-web-boot"
     compile "org.grails:grails-logging"
-    compile "org.grails:grails-plugin-rest"
+//    compile "org.grails:grails-plugin-rest"
     compile "org.grails:grails-plugin-databinding"
-    compile "org.grails:grails-plugin-i18n"
+//    compile "org.grails:grails-plugin-i18n"
     compile "org.grails:grails-plugin-services"
     compile "org.grails:grails-plugin-url-mappings"
     compile "org.grails:grails-plugin-interceptors"
@@ -47,13 +47,13 @@ dependencies {
     compile "org.grails.plugins:async"
     compile "org.grails.plugins:scaffolding"
     compile "org.grails.plugins:gsp"
-    compileOnly "io.micronaut:micronaut-inject-groovy"
+//    compileOnly "io.micronaut:micronaut-inject-groovy"
     console "org.grails:grails-console"
     profile "org.grails.profiles:web-plugin"
     runtime "com.bertramlabs.plugins:asset-pipeline-grails:3.0.10"
-    testCompile "io.micronaut:micronaut-inject-groovy"
+//    testCompile "io.micronaut:micronaut-inject-groovy"
     testCompile "org.grails:grails-gorm-testing-support"
-    testCompile "org.mockito:mockito-core"
+//    testCompile "org.mockito:mockito-core"
     testCompile "org.grails:grails-web-testing-support"
 
     // =============== Swagger =========================
@@ -88,8 +88,6 @@ tasks.withType(GroovyCompile) {
 
 // enable if you wish to package this plugin as a standalone application
 bootJar.enabled = false
-
-
 
 assets {
     packagePlugin = true

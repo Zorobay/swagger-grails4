@@ -11,6 +11,7 @@ import grails.web.mapping.UrlMapping
 import grails.web.mapping.UrlMappingsHolder
 import groovy.transform.CompileStatic
 import groovy.util.logging.Slf4j
+import groovyx.gpars.csp.plugAndPlay.GConsoleStringToInteger
 import io.swagger.v3.oas.annotations.Operation as OperationAnnotation
 import io.swagger.v3.oas.annotations.Parameter as ParameterAnnotation
 import io.swagger.v3.oas.annotations.media.Content as ContentAnnotation
@@ -31,6 +32,7 @@ import io.swagger.v3.oas.models.responses.ApiResponse as ResponseModel
 import io.swagger.v3.oas.models.responses.ApiResponses as ResponsesModel
 import io.swagger.v3.oas.models.tags.Tag as TagModel
 import swagger.grails4.SchemaType
+import swagger.grails4.helpers.GroovyClassHelper
 import swagger.grails4.model.TypeAndFormat
 
 import java.lang.reflect.Method
@@ -39,6 +41,7 @@ import java.lang.reflect.Parameter
 
 @Slf4j
 class GrailsReader implements OpenApiReader {
+
 
     private OpenAPIConfiguration openAPIConfiguration
     private DefaultGrailsApplication grailsApplication
@@ -142,10 +145,11 @@ class GrailsReader implements OpenApiReader {
         parameterModel.setRequired(parameterAnnotation.required())
         parameterModel.setDeprecated(parameterAnnotation.deprecated())
         parameterModel.setAllowEmptyValue(parameterAnnotation.allowEmptyValue())
-        parameterModel.setSchema(buildSchemaModel(parameterAnnotation.schema()))
-//        ParameterModel parameterModel = SwaggerAnnotationMapper.mapParameterAnnotation(parameterAnnotation)
-        if (parameterAnnotation.schema()) {
 
+        if (parameterAnnotation.schema()) {
+            parameterModel.setSchema(buildSchemaModel(parameterAnnotation.schema(), parameter.type))
+        } else {
+            parameterModel.setSchema(buildSchemaModel(parameter.type))
         }
         return parameterModel
     }
@@ -170,6 +174,7 @@ class GrailsReader implements OpenApiReader {
         contentAnnotations.each { ContentAnnotation contentAnnotation ->
             contentModel.addMediaType(contentAnnotation.mediaType(), buildMediaTypeModel(contentAnnotation.schema()))
         }
+        return contentModel
     }
 
     private MediaTypeModel buildMediaTypeModel(SchemaAnnotation schemaAnnotation) {
@@ -185,11 +190,14 @@ class GrailsReader implements OpenApiReader {
         }
     }
 
-    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation) {
+    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation, Class clazz = null) {
         if (schemaAnnotation?.implementation() && schemaAnnotation?.implementation() != Void) {
             return buildSchemaModel(schemaAnnotation?.implementation())
         } else {
-            return new SchemaModel(type: schemaAnnotation.type(), format: schemaAnnotation.format())
+            // TODO support more schema parameters
+            // TODO Schema annotation is never null for parameters, try to get type/format from class
+            TypeAndFormat typeAndFormat = findTypeAndFormat(clazz, schemaAnnotation)
+            return new SchemaModel(type:  typeAndFormat.type.name, format: typeAndFormat.format)
         }
     }
 
@@ -223,6 +231,10 @@ class GrailsReader implements OpenApiReader {
             String fieldName = prop.name
             Class fieldType = prop.type
 
+            if (GroovyClassHelper.isGroovyProperty(clazz, prop)) {
+                return
+            }
+
             // Try to find schema for the property type
             SchemaModel propSchema = findSchemaModelInOpenAPI(fieldType)
             if (!propSchema) {
@@ -230,6 +242,7 @@ class GrailsReader implements OpenApiReader {
             }
             propMap[fieldName] = propSchema
         }
+        return propMap
     }
 
     private SchemaModel findSchemaModelInOpenAPI(Class clazz) {
