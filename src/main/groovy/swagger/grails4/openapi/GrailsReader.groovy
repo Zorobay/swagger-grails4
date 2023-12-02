@@ -1,6 +1,5 @@
 package swagger.grails4.openapi
 
-
 import com.thoughtworks.paranamer.BytecodeReadingParanamer
 import com.thoughtworks.paranamer.CachingParanamer
 import com.thoughtworks.paranamer.Paranamer
@@ -11,27 +10,40 @@ import grails.web.mapping.UrlMapping
 import grails.web.mapping.UrlMappingsHolder
 import groovy.transform.CompileStatic
 import groovy.util.logging.Slf4j
+import io.swagger.v3.oas.annotations.ExternalDocumentation as ExternalDocumentationAnnotation
 import io.swagger.v3.oas.annotations.Operation as OperationAnnotation
 import io.swagger.v3.oas.annotations.Parameter as ParameterAnnotation
 import io.swagger.v3.oas.annotations.media.Content as ContentAnnotation
+import io.swagger.v3.oas.annotations.media.ExampleObject as ExampleAnnotation
 import io.swagger.v3.oas.annotations.media.Schema as SchemaAnnotation
-import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
+import io.swagger.v3.oas.annotations.parameters.RequestBody as RequestBodyAnnotation
 import io.swagger.v3.oas.annotations.responses.ApiResponse as ResponseAnnotation
+import io.swagger.v3.oas.annotations.security.SecurityRequirement as SecurityRequirementAnnotation
+import io.swagger.v3.oas.annotations.servers.Server as ServerAnnotation
+import io.swagger.v3.oas.annotations.servers.ServerVariable as ServerVariableAnnotation
 import io.swagger.v3.oas.annotations.tags.Tag as TagAnnotation
 import io.swagger.v3.oas.integration.api.OpenAPIConfiguration
 import io.swagger.v3.oas.integration.api.OpenApiReader
+import io.swagger.v3.oas.models.ExternalDocumentation as ExternalDocumentationModel
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.Operation as OperationModel
 import io.swagger.v3.oas.models.PathItem as PathItemModel
 import io.swagger.v3.oas.models.Paths as PathsModel
+import io.swagger.v3.oas.models.examples.Example as ExampleModel
 import io.swagger.v3.oas.models.media.Content as ContentModel
 import io.swagger.v3.oas.models.media.MediaType as MediaTypeModel
 import io.swagger.v3.oas.models.media.Schema as SchemaModel
 import io.swagger.v3.oas.models.parameters.Parameter as ParameterModel
+import io.swagger.v3.oas.models.parameters.RequestBody as RequestBodyModel
 import io.swagger.v3.oas.models.responses.ApiResponse as ResponseModel
 import io.swagger.v3.oas.models.responses.ApiResponses as ResponsesModel
+import io.swagger.v3.oas.models.security.SecurityRequirement as SecurityRequirementModel
+import io.swagger.v3.oas.models.servers.Server as ServerModel
+import io.swagger.v3.oas.models.servers.ServerVariable as ServerVariableModel
+import io.swagger.v3.oas.models.servers.ServerVariables as ServerVariablesModel
 import io.swagger.v3.oas.models.tags.Tag as TagModel
 import swagger.grails4.SchemaType
+import swagger.grails4.helpers.EnumMapper
 import swagger.grails4.helpers.GroovyClassHelper
 import swagger.grails4.model.TypeAndFormat
 
@@ -66,7 +78,7 @@ class GrailsReader implements OpenApiReader {
             GrailsControllerClass controllerArtifact = controllers.find { it.clazz == controllerClass }
             TagModel tag = buildTagModel(controllerArtifact)
             openAPI.addTagsItem(tag)
-            openAPI.setPaths(openAPI.paths ?: new PathsModel()) // paths is initialized as null
+            openAPI.setPaths(openAPI.paths ?: new PathsModel()) // paths is initialized as null in OpenAPI
 
             controllerArtifact.actions.each { String actionName ->
                 log.info("Processing action: ${actionName}")
@@ -84,8 +96,13 @@ class GrailsReader implements OpenApiReader {
     private TagModel buildTagModel(GrailsControllerClass controller) {
         TagModel tagModel = new TagModel()
         TagAnnotation tagAnnotation = controller.clazz.getAnnotation(TagAnnotation) as TagAnnotation
-        tagModel.name(tagAnnotation.name())
-        tagModel.description(tagAnnotation.description())
+        tagModel.setName(tagAnnotation.name())
+        tagModel.setDescription(tagAnnotation.description())
+
+        // TODO support extensions
+        ExternalDocumentationModel externalDocumentationModel = buildExternalDocumentationModel(tagAnnotation.externalDocs())
+        tagModel.setExternalDocs(externalDocumentationModel)
+        return tagModel
     }
 
     private void buildAndAddPathItemModel(GrailsControllerClass controller, Method method, OperationModel operation) {
@@ -101,7 +118,7 @@ class GrailsReader implements OpenApiReader {
         } else {
             // UrlMapping is not explicitly defined for controller/action, so we have to build it from the controller
             UrlCreator urlCreator = urlMappingsHolder.getReverseMapping(
-                    controller.logicalPropertyName, method.name, controller.pluginName, [:])
+                controller.logicalPropertyName, method.name, controller.pluginName, [:])
             url = urlCreator.createURL(controller.logicalPropertyName, method.name, [:], 'UTF-8')
         }
         pathItemModel.operation(httpMethod, operation)
@@ -111,7 +128,16 @@ class GrailsReader implements OpenApiReader {
     private OperationModel buildOperationModel(GrailsControllerClass controller, Method method) {
         OperationAnnotation operationAnnotation = method.getAnnotation(OperationAnnotation)
         if (operationAnnotation) {
+            // TODO support callbacks
             OperationModel operationModel = new OperationModel()
+            operationModel.setSummary(operationAnnotation.summary())
+            operationModel.setDescription(operationAnnotation.description())
+            operationModel.setExternalDocs(buildExternalDocumentationModel(operationAnnotation.externalDocs()))
+            operationModel.setOperationId(operationAnnotation.operationId())
+            operationModel.setRequestBody(buildRequestBodyModel(operationAnnotation.requestBody()))
+            operationModel.setDeprecated(operationAnnotation.deprecated())
+            operationModel.setSecurity(buildSecurityRequirementModels(operationAnnotation.security()))
+            operationModel.setServers(buildServerModels(operationAnnotation.servers()))
 
             Paranamer paranamer = new CachingParanamer(new BytecodeReadingParanamer())
             List<String> paramNames = paranamer.lookupParameterNames(method)
@@ -134,24 +160,50 @@ class GrailsReader implements OpenApiReader {
         return null
     }
 
+    private RequestBodyModel buildRequestBodyModel(RequestBodyAnnotation requestBodyAnnotation) {
+        RequestBodyModel requestBodyModel = new RequestBodyModel()
+        requestBodyModel.setDescription(requestBodyAnnotation?.description())
+        requestBodyModel.setContent(buildContentModel(requestBodyAnnotation?.content()))
+        requestBodyModel.setRequired(requestBodyAnnotation?.required())
+        return requestBodyModel
+    }
+
     private ParameterModel buildParameterModel(OperationAnnotation operationAnnotation, Parameter parameter, String paramName) {
         ParameterAnnotation parameterAnnotation = operationAnnotation.parameters().find { it.name() == paramName }
         ParameterModel parameterModel = new ParameterModel()
         parameterModel.setName(parameterAnnotation?.name() ?: paramName)
-        parameterModel.setDescription(parameterAnnotation?.description())
         parameterModel.setIn(parameterAnnotation?.in()?.toString())
+        parameterModel.setDescription(parameterAnnotation?.description())
         parameterModel.setRequired(parameterAnnotation?.required())
         parameterModel.setDeprecated(parameterAnnotation?.deprecated())
         parameterModel.setAllowEmptyValue(parameterAnnotation?.allowEmptyValue())
+        parameterModel.setStyle(EnumMapper.styleEnumFromParameterStyle(parameterAnnotation?.style()))
+        parameterModel.setExplode(EnumMapper.explodeToBoolean(parameterAnnotation?.explode()))
+        parameterModel.setAllowReserved(parameterAnnotation?.allowReserved())
+        parameterModel.setExamples(buildExampleModels(parameterAnnotation?.examples()))
+        parameterModel.setExample(parameterAnnotation?.example() ?: null)
         parameterModel.setSchema(buildSchemaModel(parameterAnnotation?.schema(), parameter.type))
+        parameterModel.setContent(buildContentModel(parameterAnnotation?.content()))
         return parameterModel
+    }
+
+    private Map<String, ExampleModel> buildExampleModels(ExampleAnnotation[] exampleAnnotations) {
+        Map<String, ExampleModel> exampleMap = new HashMap<>()
+        exampleAnnotations?.each { ExampleAnnotation exampleAnnotation ->
+            ExampleModel exampleModel = new ExampleModel()
+            exampleModel.setSummary(exampleAnnotation.summary())
+            exampleModel.setDescription(exampleAnnotation.description())
+            exampleModel.setValue(exampleAnnotation.value())
+            exampleModel.setExternalValue(exampleAnnotation.externalValue())
+            exampleMap.put(exampleAnnotation.name(), exampleModel)
+        }
+        return exampleMap.isEmpty() ? null : exampleMap // If empty map is returned, an empty list of examples is shown in ui
     }
 
     private ResponsesModel buildResponsesModel(OperationAnnotation operationAnnotation) {
         ResponsesModel responsesModel = new ResponsesModel()
         operationAnnotation.responses().each { ResponseAnnotation responseAnnotation ->
             ResponseModel responseModel = new ResponseModel()
-            // TODO map $ref, content and extensions
             responseModel.setDescription(responseAnnotation.description())
             responseModel.setHeaders(SwaggerAnnotationMapper.mapHeadersAnnotation(responseAnnotation.headers()))
             responseModel.setLinks(SwaggerAnnotationMapper.mapLinksAnnotation(responseAnnotation.links()))
@@ -162,9 +214,45 @@ class GrailsReader implements OpenApiReader {
         return responsesModel
     }
 
+    private ExternalDocumentationModel buildExternalDocumentationModel(ExternalDocumentationAnnotation externalDocAnnotation) {
+        ExternalDocumentationModel externalDocumentationModel = new ExternalDocumentationModel()
+        externalDocumentationModel.setDescription(externalDocAnnotation?.description())
+        externalDocumentationModel.setUrl(externalDocAnnotation?.url())
+        return externalDocumentationModel
+    }
+
+    private List<SecurityRequirementModel> buildSecurityRequirementModels(SecurityRequirementAnnotation[] securityRequirementAnnotations) {
+        return securityRequirementAnnotations?.collect { SecurityRequirementAnnotation securityRequirementAnnotation ->
+            SecurityRequirementModel securityRequirementModel = new SecurityRequirementModel()
+            securityRequirementModel.addList(securityRequirementAnnotation.name(), securityRequirementAnnotation.scopes()?.toList())
+            return securityRequirementModel
+        }
+    }
+
+    private List<ServerModel> buildServerModels(ServerAnnotation[] serverAnnotations) {
+        return serverAnnotations?.collect { ServerAnnotation serverAnnotation ->
+            ServerModel serverModel = new ServerModel()
+            serverModel.setUrl(serverAnnotation.url())
+            serverModel.setDescription(serverAnnotation.description())
+            serverModel.setVariables(buildServerVariablesModel(serverAnnotation.variables()))
+        }
+    }
+
+    private ServerVariablesModel buildServerVariablesModel(ServerVariableAnnotation[] serverVariableAnnotations) {
+        ServerVariablesModel serverVariablesModel = new ServerVariablesModel()
+        serverVariableAnnotations?.each { ServerVariableAnnotation serverVariableAnnotation ->
+            ServerVariableModel serverVariableModel = new ServerVariableModel()
+            serverVariableModel.setEnum(serverVariableAnnotation.allowableValues()?.toList())
+            serverVariableModel.setDefault(serverVariableAnnotation.defaultValue())
+            serverVariableModel.setDescription(serverVariableAnnotation.description())
+            serverVariablesModel.addServerVariable(serverVariableAnnotation.name(), serverVariableModel)
+        }
+        return serverVariablesModel
+    }
+
     private ContentModel buildContentModel(ContentAnnotation[] contentAnnotations) {
         ContentModel contentModel = new ContentModel()
-        contentAnnotations.each { ContentAnnotation contentAnnotation ->
+        contentAnnotations?.each { ContentAnnotation contentAnnotation ->
             contentModel.addMediaType(contentAnnotation.mediaType(), buildMediaTypeModel(contentAnnotation.schema()))
         }
         return contentModel
@@ -200,9 +288,8 @@ class GrailsReader implements OpenApiReader {
         // TODO support more properties from SchemaAnnotation
         TypeAndFormat typeAndFormat = findTypeAndFormat(schemaClass)
         String type = schemaAnnotation?.type() ?: typeAndFormat.typeName
-        String format = schemaAnnotation?.type() ?: typeAndFormat.format
-        SchemaModel schemaModel = new SchemaModel(type: type, format: format, name: schemaNameFromClass(schemaClass),
-        title: schemaAnnotation?.title())
+        String format = schemaAnnotation?.format() ?: typeAndFormat.format
+        SchemaModel schemaModel = new SchemaModel(type: type, format: format, name: schemaNameFromClass(schemaClass), title: schemaAnnotation?.title())
 
         // is the type is an object, we build the schema from its properties
         if (typeAndFormat.type == SchemaType.OBJECT || schemaClass.isEnum()) {
@@ -242,14 +329,6 @@ class GrailsReader implements OpenApiReader {
         return openAPI.components?.getSchemas()?.get(className)
     }
 
-    private static boolean requiredFromRequiredMode(RequiredMode requiredMode) {
-        switch(requiredMode) {
-            case null: return false
-            case RequiredMode.REQUIRED: return true
-            case RequiredMode.NOT_REQUIRED: return true
-            default: return false
-        }
-    }
     private static String schemaNameFromClass(Class clazz) {
         return clazz.canonicalName
     }
@@ -272,9 +351,9 @@ class GrailsReader implements OpenApiReader {
     @CompileStatic
     private static findControllerMethodFromAction(Class controllerClass, String actionName) {
         return controllerClass.methods
-                .findAll { it.name == actionName }
-                .sort { it.parameterCount }
-                .last()
+            .findAll { it.name == actionName }
+            .sort { it.parameterCount }
+            .last()
     }
 
     @CompileStatic

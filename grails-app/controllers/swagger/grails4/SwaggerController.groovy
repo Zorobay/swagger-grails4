@@ -15,22 +15,12 @@ class SwaggerController {
 
     OpenApiService openApiService
 
-    def ui() {
-        render view: '/swagger/index'
+    def index() {
+        redirect(action: 'ui')
     }
 
-    @Operation(
-            summary = 'Get the OpenAPI v3 JSON definition',
-            description = 'Get the OpenAPI v3 JSON definition. Caches the generated document.',
-            parameters = [
-              @Parameter(name = 'param1', description = 'a cute parameter', in = ParameterIn.QUERY, required = true, allowEmptyValue = true, schema = @Schema(type = 'string') )
-            ],
-            responses = [
-                @ApiResponse(description = 'An OpenAPI v3 JSON definition', responseCode = '200')
-            ]
-    )
-    def test(Long param1) {
-        render(text: "${param1}")
+    def ui() {
+        render view: '/swagger/index'
     }
 
     def openApiDocument() {

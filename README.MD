@@ -2,8 +2,17 @@
 
 ## TODO
 
+ - [x] Complete mapping of `@Tag`
+ - [x] Complete mapping of `@Operation`
+ - [x] Complete mapping of `@RequestBody`
+ - [x] Complete mapping of `@ApiResponse`
+ - [ ] Complete mapping of `@Content`
+ - [ ] Support `@Callback`
+ - [ ] Support `@SecurityRequirement` on class level
+ - [ ] Support `@SecurityRequirement` on method level (outside of `@Operation`)
+ - [ ] Support extensions
  - [ ] Response object schema
-[ ]
+
 ## Links
 
 ### OpenAPI v3 spec
