@@ -11,11 +11,11 @@ import grails.web.mapping.UrlMapping
 import grails.web.mapping.UrlMappingsHolder
 import groovy.transform.CompileStatic
 import groovy.util.logging.Slf4j
-import groovyx.gpars.csp.plugAndPlay.GConsoleStringToInteger
 import io.swagger.v3.oas.annotations.Operation as OperationAnnotation
 import io.swagger.v3.oas.annotations.Parameter as ParameterAnnotation
 import io.swagger.v3.oas.annotations.media.Content as ContentAnnotation
 import io.swagger.v3.oas.annotations.media.Schema as SchemaAnnotation
+import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.annotations.responses.ApiResponse as ResponseAnnotation
 import io.swagger.v3.oas.annotations.tags.Tag as TagAnnotation
 import io.swagger.v3.oas.integration.api.OpenAPIConfiguration
@@ -41,7 +41,6 @@ import java.lang.reflect.Parameter
 
 @Slf4j
 class GrailsReader implements OpenApiReader {
-
 
     private OpenAPIConfiguration openAPIConfiguration
     private DefaultGrailsApplication grailsApplication
@@ -138,19 +137,13 @@ class GrailsReader implements OpenApiReader {
     private ParameterModel buildParameterModel(OperationAnnotation operationAnnotation, Parameter parameter, String paramName) {
         ParameterAnnotation parameterAnnotation = operationAnnotation.parameters().find { it.name() == paramName }
         ParameterModel parameterModel = new ParameterModel()
-        // TODO $ref
-        parameterModel.setName(parameterAnnotation.name())
-        parameterModel.setDescription(parameterAnnotation.description())
-        parameterModel.setIn(parameterAnnotation.in()?.toString())
-        parameterModel.setRequired(parameterAnnotation.required())
-        parameterModel.setDeprecated(parameterAnnotation.deprecated())
-        parameterModel.setAllowEmptyValue(parameterAnnotation.allowEmptyValue())
-
-        if (parameterAnnotation.schema()) {
-            parameterModel.setSchema(buildSchemaModel(parameterAnnotation.schema(), parameter.type))
-        } else {
-            parameterModel.setSchema(buildSchemaModel(parameter.type))
-        }
+        parameterModel.setName(parameterAnnotation?.name() ?: paramName)
+        parameterModel.setDescription(parameterAnnotation?.description())
+        parameterModel.setIn(parameterAnnotation?.in()?.toString())
+        parameterModel.setRequired(parameterAnnotation?.required())
+        parameterModel.setDeprecated(parameterAnnotation?.deprecated())
+        parameterModel.setAllowEmptyValue(parameterAnnotation?.allowEmptyValue())
+        parameterModel.setSchema(buildSchemaModel(parameterAnnotation?.schema(), parameter.type))
         return parameterModel
     }
 
@@ -190,27 +183,26 @@ class GrailsReader implements OpenApiReader {
         }
     }
 
-    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation, Class clazz = null) {
-        if (schemaAnnotation?.implementation() && schemaAnnotation?.implementation() != Void) {
-            return buildSchemaModel(schemaAnnotation?.implementation())
-        } else {
-            // TODO support more schema parameters
-            // TODO Schema annotation is never null for parameters, try to get type/format from class
-            TypeAndFormat typeAndFormat = findTypeAndFormat(clazz, schemaAnnotation)
-            return new SchemaModel(type:  typeAndFormat.type.name, format: typeAndFormat.format)
-        }
+    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation) {
+        return buildSchemaModel(schemaAnnotation, schemaAnnotation?.implementation())
     }
 
     private SchemaModel buildSchemaModel(Class schemaClass) {
-        SchemaModel existingSchema = findSchemaModelInOpenAPI(schemaClass)
+        return buildSchemaModel(null, schemaClass)
+    }
+
+    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation, Class schemaClass) {
+        SchemaModel existingSchema = schemaClass ? findSchemaModelInOpenAPI(schemaClass) : null
         if (existingSchema) {
             return new SchemaModel($ref: getSchemaRef(existingSchema))
         }
-        // Schema does not already exist, so we build it
-        SchemaModel schemaModel = new SchemaModel()
+        // Schema does not already exist, so we build it. Annotation takes precedence
+        // TODO support more properties from SchemaAnnotation
         TypeAndFormat typeAndFormat = findTypeAndFormat(schemaClass)
-        schemaModel.setType(typeAndFormat.type.name)
-        schemaModel.setFormat(typeAndFormat.format)
+        String type = schemaAnnotation?.type() ?: typeAndFormat.typeName
+        String format = schemaAnnotation?.type() ?: typeAndFormat.format
+        SchemaModel schemaModel = new SchemaModel(type: type, format: format, name: schemaNameFromClass(schemaClass),
+        title: schemaAnnotation?.title())
 
         // is the type is an object, we build the schema from its properties
         if (typeAndFormat.type == SchemaType.OBJECT || schemaClass.isEnum()) {
@@ -250,6 +242,14 @@ class GrailsReader implements OpenApiReader {
         return openAPI.components?.getSchemas()?.get(className)
     }
 
+    private static boolean requiredFromRequiredMode(RequiredMode requiredMode) {
+        switch(requiredMode) {
+            case null: return false
+            case RequiredMode.REQUIRED: return true
+            case RequiredMode.NOT_REQUIRED: return true
+            default: return false
+        }
+    }
     private static String schemaNameFromClass(Class clazz) {
         return clazz.canonicalName
     }
@@ -279,6 +279,6 @@ class GrailsReader implements OpenApiReader {
 
     @CompileStatic
     static String getSchemaRef(SchemaModel schema) {
-        "#/components/schemas/${schema.name}"
+        return "#/components/schemas/${schema.name}"
     }
 }

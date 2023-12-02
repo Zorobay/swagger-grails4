@@ -15,7 +15,7 @@ class SwaggerController {
 
     OpenApiService openApiService
 
-    def swagger() {
+    def ui() {
         render view: '/swagger/index'
     }
 

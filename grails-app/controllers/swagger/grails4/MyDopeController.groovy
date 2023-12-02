@@ -48,8 +48,10 @@ class MyDopeController {
         println(password)
     }
 
-    @Operation()
-    def test() {
+    @Operation(
+        summary = 'Method with parameter without annotation'
+    )
+    def test(String paramWithoutAnnotation) {
 
     }
 }

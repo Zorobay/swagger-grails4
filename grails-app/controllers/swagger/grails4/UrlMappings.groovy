@@ -12,7 +12,7 @@ class UrlMappings {
 
         get "/something/else"(controller: 'myDope', action: 'test')
         get "/swagger/test"(controller: 'swagger', action: 'test')
-        get "/swagger/swagger"(controller: 'swagger', action: 'swagger')
+        get "/swagger/ui"(controller: 'swagger', action: 'ui')
         get "/swagger/openApiDocument"(controller: 'swagger', action: 'openApiDocument')
     }
 }

@@ -18,7 +18,18 @@ class TypeAndFormat {
         this.format = format
     }
 
+    String getTypeName() {
+        return type?.name
+    }
+
+    static TypeAndFormat unknown() {
+        return new TypeAndFormat(SchemaType.UNKNOWN)
+    }
+
     static TypeAndFormat fromClass(Class clazz) {
+        if (!clazz) {
+            return unknown()
+        }
         switch (clazz) {
             case CharSequence:
                 return new TypeAndFormat(SchemaType.STRING)

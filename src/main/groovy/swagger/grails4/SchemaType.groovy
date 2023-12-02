@@ -7,7 +7,8 @@ enum SchemaType {
     BOOLEAN('boolean'),
     NUMBER('number'),
     ARRAY('array'),
-    OBJECT('object')
+    OBJECT('object'),
+    UNKNOWN('')
 
     String name
 
