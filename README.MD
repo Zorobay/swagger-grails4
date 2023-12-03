@@ -7,6 +7,8 @@
  - [x] Complete mapping of `@RequestBody`
  - [x] Complete mapping of `@ApiResponse`
  - [ ] Complete mapping of `@Content`
+ - [ ] Support `@Schema` on class level
+ - [ ] Support `@Schema` on class property level
  - [ ] Support `@Callback`
  - [ ] Support `@SecurityRequirement` on class level
  - [ ] Support `@SecurityRequirement` on method level (outside of `@Operation`)

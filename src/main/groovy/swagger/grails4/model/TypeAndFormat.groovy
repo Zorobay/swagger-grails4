@@ -1,6 +1,6 @@
 package swagger.grails4.model
 
-import swagger.grails4.SchemaType
+import swagger.grails4.enums.SchemaType
 
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -19,7 +19,7 @@ class TypeAndFormat {
     }
 
     String getTypeName() {
-        return type?.name
+        return type?.swaggerName
     }
 
     static TypeAndFormat unknown() {

@@ -30,7 +30,9 @@ import io.swagger.v3.oas.models.Operation as OperationModel
 import io.swagger.v3.oas.models.PathItem as PathItemModel
 import io.swagger.v3.oas.models.Paths as PathsModel
 import io.swagger.v3.oas.models.examples.Example as ExampleModel
+import io.swagger.v3.oas.models.media.ArraySchema
 import io.swagger.v3.oas.models.media.Content as ContentModel
+import io.swagger.v3.oas.models.media.MapSchema
 import io.swagger.v3.oas.models.media.MediaType as MediaTypeModel
 import io.swagger.v3.oas.models.media.Schema as SchemaModel
 import io.swagger.v3.oas.models.parameters.Parameter as ParameterModel
@@ -42,7 +44,7 @@ import io.swagger.v3.oas.models.servers.Server as ServerModel
 import io.swagger.v3.oas.models.servers.ServerVariable as ServerVariableModel
 import io.swagger.v3.oas.models.servers.ServerVariables as ServerVariablesModel
 import io.swagger.v3.oas.models.tags.Tag as TagModel
-import swagger.grails4.SchemaType
+import swagger.grails4.enums.SchemaType
 import swagger.grails4.helpers.EnumMapper
 import swagger.grails4.helpers.GroovyClassHelper
 import swagger.grails4.model.TypeAndFormat
@@ -50,6 +52,7 @@ import swagger.grails4.model.TypeAndFormat
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Parameter
+import java.lang.reflect.Type
 
 @Slf4j
 class GrailsReader implements OpenApiReader {
@@ -279,25 +282,57 @@ class GrailsReader implements OpenApiReader {
         return buildSchemaModel(null, schemaClass)
     }
 
-    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation, Class schemaClass) {
+    private SchemaModel buildSchemaModel(Class schemaClass, Type genericType) {
+        return buildSchemaModel(null, schemaClass, genericType)
+    }
+
+    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation, Class schemaClass, Type genericType = null) {
         SchemaModel existingSchema = schemaClass ? findSchemaModelInOpenAPI(schemaClass) : null
         if (existingSchema) {
             return new SchemaModel($ref: getSchemaRef(existingSchema))
         }
         // Schema does not already exist, so we build it. Annotation takes precedence
         // TODO support more properties from SchemaAnnotation
+        Map schemaArgs = buildSchemaModelArgs(schemaAnnotation, schemaClass)
+        SchemaModel schemaModel = new SchemaModel(schemaArgs)
+        String name = schemaModel.name
+
+        if (schemaModel.type == SchemaType.OBJECT.swaggerName) { // Type is object
+            if (Map.isAssignableFrom(schemaClass)) { // Object type is Map
+                schemaModel = new MapSchema(schemaArgs)
+                Class componentClass = schemaClass.componentType ?: (genericType?.actualTypeArguments[0] as Class)
+                componentClass = componentClass ?: Object
+                schemaModel.additionalProperties = buildSchemaModel(componentClass)
+            } else { // All other types of objects
+                Map<String, SchemaModel> schemaProperties = buildSchemaProperties(schemaClass)
+                schemaModel.properties(schemaProperties)
+                openAPI.schema(name, schemaModel)
+            }
+        } else if (schemaModel.type == SchemaType.ARRAY.swaggerName) { // Type if List-like collection
+            schemaModel = new ArraySchema(schemaArgs)
+            Class componentClass = schemaClass.componentType ?: (genericType?.actualTypeArguments[0] as Class)
+            componentClass = componentClass ?: Object
+            schemaModel.items = buildSchemaModel(componentClass)
+        } else if (schemaClass.isEnum()) { // Type is enum
+            schemaModel.enum = schemaModel.enum ?: schemaClass.values().collect { it.name() }
+            openAPI.schema(name, schemaModel) // Enums are also saved as "reusable enums"
+        }
+        return schemaModel
+    }
+
+    private Map<String, Object> buildSchemaModelArgs(SchemaAnnotation schemaAnnotation, Class schemaClass) {
         TypeAndFormat typeAndFormat = findTypeAndFormat(schemaClass)
         String type = schemaAnnotation?.type() ?: typeAndFormat.typeName
         String format = schemaAnnotation?.format() ?: typeAndFormat.format
-        SchemaModel schemaModel = new SchemaModel(type: type, format: format, name: schemaNameFromClass(schemaClass), title: schemaAnnotation?.title())
-
-        // is the type is an object, we build the schema from its properties
-        if (typeAndFormat.type == SchemaType.OBJECT || schemaClass.isEnum()) {
-            Map<String, SchemaModel> schemaProperties = buildSchemaProperties(schemaClass)
-            schemaModel.properties(schemaProperties)
-            openAPI.schema(schemaNameFromClass(schemaClass), schemaModel)
-        }
-        return schemaModel
+        String name = schemaNameFromClass(schemaClass)
+        return [
+            type       : type,
+            format     : format,
+            name       : name,
+            title      : schemaAnnotation?.title(),
+            description: schemaAnnotation?.description(),
+            enum       : schemaAnnotation?.allowableValues()
+        ]
     }
 
     private Map<String, SchemaModel> buildSchemaProperties(Class clazz) {
@@ -317,7 +352,9 @@ class GrailsReader implements OpenApiReader {
             // Try to find schema for the property type
             SchemaModel propSchema = findSchemaModelInOpenAPI(fieldType)
             if (!propSchema) {
-                propSchema = buildSchemaModel(fieldType)
+                SchemaAnnotation schemaAnnotation = prop.field?.field?.getAnnotation(SchemaAnnotation)
+                Type genericType = prop.field?.field?.genericType // Used to find out component class of Collections
+                propSchema = buildSchemaModel(schemaAnnotation, fieldType, genericType)
             }
             propMap[fieldName] = propSchema
         }

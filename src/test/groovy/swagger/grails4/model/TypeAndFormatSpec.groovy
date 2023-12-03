@@ -3,7 +3,7 @@ package swagger.grails4.model
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Unroll
-import swagger.grails4.SchemaType
+import swagger.grails4.enums.SchemaType
 
 import java.time.LocalDate
 import java.time.LocalDateTime

@@ -1,6 +1,7 @@
 package swagger.grails4.helpers
 
 import grails.artefact.DomainClass
+import org.springframework.validation.Errors
 
 class GroovyClassHelper {
 
@@ -18,6 +19,7 @@ class GroovyClassHelper {
             case "logger":
             case "instanceControllersDomainBindingApi":
             case "instanceConvertersApi":
+            case { property.type == Errors && property.name == 'errors' }:
             case { DomainClass.isAssignableFrom(clazz) && property.name == "version" }:
             case { DomainClass.isAssignableFrom(clazz) && property.name == "transients" }:
             case { DomainClass.isAssignableFrom(clazz) && property.name == "all" }:

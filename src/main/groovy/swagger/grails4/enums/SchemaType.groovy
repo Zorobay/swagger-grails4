@@ -1,4 +1,4 @@
-package swagger.grails4
+package swagger.grails4.enums
 
 enum SchemaType {
 
@@ -10,13 +10,13 @@ enum SchemaType {
     OBJECT('object'),
     UNKNOWN('')
 
-    String name
+    String swaggerName
 
-    SchemaType(String name) {
-        this.name = name
+    SchemaType(String swaggerName) {
+        this.swaggerName = swaggerName
     }
 
     static SchemaType fromSwaggerName(String type) {
-        return values().find {it.name == type}
+        return values().find {it.swaggerName == type}
     }
 }
