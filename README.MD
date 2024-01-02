@@ -1,12 +1,37 @@
 # Swagger Grails4 Plugin
 
-## TODO
+## Usage
+
+### Configuration
+
+### Command object
+Input parameters of a class, which name ends in 'Command' will automatically be parsed as command objects as long as there is a matching `@Parameter` annotation
+on the method, where the `name` property matches with the command parameter, see example below:
+
+```groovy
+@Operation(parameters = [
+    @Parameter(name = 'cmd', in = ParameterIn.PATH)
+])
+def methodWithCommandObject(TestCommand cmd) {
+    render(text: cmd.validate())
+}
+```
+
+The parameters of the command object will be handled as separate input parameters in the Swagger documentation, of the type that is specified with the `in` property.
+
+## Development Progress
 
  - [x] Complete mapping of `@Tag`
  - [x] Complete mapping of `@Operation`
  - [x] Complete mapping of `@RequestBody`
  - [x] Complete mapping of `@ApiResponse`
  - [ ] Complete mapping of `@Content`
+ - [ ] Complete mapping of `@MediaType`
+ - [x] Complete mapping of `@Schema` (as good as completed)
+   - [x] `@Schema` on model level overwrites `@Schema` on operation level
+ - [ ] Support `@ArraySchema`
+ - [x] Complete mapping of `@Parameter`
+ - [ ] Complete support of `Info` from config
  - [ ] Support `@Schema` on class level
  - [ ] Support `@Schema` on class property level
  - [ ] Support `@Callback`
@@ -14,6 +39,8 @@
  - [ ] Support `@SecurityRequirement` on method level (outside of `@Operation`)
  - [ ] Support extensions
  - [ ] Response object schema
+ - [ ] Automatic parsing of Command object
+   - [ ] Utilize existing constraints. Can be overwritten by `@Schema` on property level
 
 ## Links
 

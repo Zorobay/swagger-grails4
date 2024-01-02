@@ -6,9 +6,14 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.enums.ParameterStyle
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import swagger.grails4.deleteme.TestCommand
 import swagger.grails4.deleteme.TestErrorResponse
+import swagger.grails4.deleteme.TestInputBody
 
 @Tag(name = 'MyDope', description = 'A test controller')
 class MyDopeController {
@@ -48,10 +53,26 @@ class MyDopeController {
         println(password)
     }
 
+    @Operation(requestBody = @RequestBody(
+            description = 'description on operation level', content = [
+                    @Content(schema = @Schema(implementation = TestInputBody, title = 'title on operation', nullable = true), mediaType = MediaType.APPLICATION_JSON_VALUE)
+            ])
+    )
+    def methodWithImplicitJsonInput() {
+        render(HttpStatus.OK)
+    }
+
+    @Operation(parameters = [
+            @Parameter(name = 'cmd', in = ParameterIn.QUERY)
+    ])
+    def methodWithCommandObject(TestCommand cmd) {
+        render(text: cmd.validate())
+    }
+
     @Operation(
-        summary = 'Method with parameter without annotation'
+            summary = 'Method with parameter without annotation'
     )
     def test(String paramWithoutAnnotation) {
-
+        def a = paramWithoutAnnotation
     }
 }

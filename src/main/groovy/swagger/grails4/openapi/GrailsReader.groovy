@@ -5,6 +5,7 @@ import com.thoughtworks.paranamer.CachingParanamer
 import com.thoughtworks.paranamer.Paranamer
 import grails.core.DefaultGrailsApplication
 import grails.core.GrailsControllerClass
+import grails.util.Holders
 import grails.web.mapping.UrlCreator
 import grails.web.mapping.UrlMapping
 import grails.web.mapping.UrlMappingsHolder
@@ -13,8 +14,11 @@ import groovy.util.logging.Slf4j
 import io.swagger.v3.oas.annotations.ExternalDocumentation as ExternalDocumentationAnnotation
 import io.swagger.v3.oas.annotations.Operation as OperationAnnotation
 import io.swagger.v3.oas.annotations.Parameter as ParameterAnnotation
+import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.Content as ContentAnnotation
+import io.swagger.v3.oas.annotations.media.DiscriminatorMapping as DiscriminatorMappingAnnotation
 import io.swagger.v3.oas.annotations.media.ExampleObject as ExampleAnnotation
+import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema as SchemaAnnotation
 import io.swagger.v3.oas.annotations.parameters.RequestBody as RequestBodyAnnotation
 import io.swagger.v3.oas.annotations.responses.ApiResponse as ResponseAnnotation
@@ -30,8 +34,10 @@ import io.swagger.v3.oas.models.Operation as OperationModel
 import io.swagger.v3.oas.models.PathItem as PathItemModel
 import io.swagger.v3.oas.models.Paths as PathsModel
 import io.swagger.v3.oas.models.examples.Example as ExampleModel
+import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.media.ArraySchema
 import io.swagger.v3.oas.models.media.Content as ContentModel
+import io.swagger.v3.oas.models.media.Discriminator as DiscriminatorModel
 import io.swagger.v3.oas.models.media.MapSchema
 import io.swagger.v3.oas.models.media.MediaType as MediaTypeModel
 import io.swagger.v3.oas.models.media.Schema as SchemaModel
@@ -44,9 +50,12 @@ import io.swagger.v3.oas.models.servers.Server as ServerModel
 import io.swagger.v3.oas.models.servers.ServerVariable as ServerVariableModel
 import io.swagger.v3.oas.models.servers.ServerVariables as ServerVariablesModel
 import io.swagger.v3.oas.models.tags.Tag as TagModel
+import org.grails.config.NavigableMap
 import swagger.grails4.enums.SchemaType
 import swagger.grails4.helpers.EnumMapper
 import swagger.grails4.helpers.GroovyClassHelper
+import swagger.grails4.helpers.MapHelper
+import swagger.grails4.helpers.ValueMapper
 import swagger.grails4.model.TypeAndFormat
 
 import java.lang.reflect.Method
@@ -57,10 +66,10 @@ import java.lang.reflect.Type
 @Slf4j
 class GrailsReader implements OpenApiReader {
 
-    private OpenAPIConfiguration openAPIConfiguration
     private DefaultGrailsApplication grailsApplication
-    private OpenAPI openAPI = new OpenAPI()
+    private OpenAPI openAPI
     UrlMappingsHolder urlMappingsHolder
+
 
     GrailsReader(DefaultGrailsApplication grailsApplication) {
         this.grailsApplication = grailsApplication
@@ -68,13 +77,11 @@ class GrailsReader implements OpenApiReader {
     }
 
     @Override
-    void setConfiguration(OpenAPIConfiguration openApiConfiguration) {
-        this.openAPIConfiguration = openAPIConfiguration
-        this.openAPI = openApiConfiguration.openAPI ? openApiConfiguration.openAPI : this.openAPI
-    }
+    void setConfiguration(OpenAPIConfiguration ignored) { /* This is never called?*/ }
 
     @Override
     OpenAPI read(Set<Class<?>> classes, Map<String, Object> resources) {
+        openAPI = buildOpenAPI()
         List<GrailsControllerClass> controllers = grailsApplication.getArtefacts('Controller')
         classes.each { Class controllerClass ->
             log.info("Processing controller: ${controllerClass}")
@@ -121,7 +128,7 @@ class GrailsReader implements OpenApiReader {
         } else {
             // UrlMapping is not explicitly defined for controller/action, so we have to build it from the controller
             UrlCreator urlCreator = urlMappingsHolder.getReverseMapping(
-                controller.logicalPropertyName, method.name, controller.pluginName, [:])
+                    controller.logicalPropertyName, method.name, controller.pluginName, [:])
             url = urlCreator.createURL(controller.logicalPropertyName, method.name, [:], 'UTF-8')
         }
         pathItemModel.operation(httpMethod, operation)
@@ -146,10 +153,17 @@ class GrailsReader implements OpenApiReader {
             List<String> paramNames = paranamer.lookupParameterNames(method)
 
             // Build parameters of operation
-            method.parameters.eachWithIndex { Parameter parameter, int i ->
-                String parameterName = paramNames[i]
-                ParameterModel parameterModel = buildParameterModel(operationAnnotation, parameter, parameterName)
-                operationModel.addParametersItem(parameterModel)
+            // Check if there is a single command object as parameter
+            if (method.parameterCount == 1 && typeIsCommandObject(method.parameters.first().type)) {
+                ParameterAnnotation parameterAnnotation = operationAnnotation.parameters()
+                        .find { it.name() == paramNames[0] }
+                operationModel.setParameters(buildParameterModelsFromCommand(parameterAnnotation, method.parameters.first().type))
+            } else {
+                method.parameters.eachWithIndex { Parameter parameter, int i ->
+                    String parameterName = paramNames[i]
+                    ParameterModel parameterModel = buildParameterModel(operationAnnotation, parameter, parameterName)
+                    operationModel.addParametersItem(parameterModel)
+                }
             }
 
             // Build responses of operation
@@ -190,6 +204,21 @@ class GrailsReader implements OpenApiReader {
         return parameterModel
     }
 
+    private List<ParameterModel> buildParameterModelsFromCommand(ParameterAnnotation parameterAnnotation, Class commandClass) {
+        ParameterIn inType = parameterAnnotation.in()
+        Map<String, SchemaModel> properties = buildSchemaProperties(commandClass)
+
+        return properties.collect { String key, SchemaModel val ->
+            ParameterModel parameterModel = new ParameterModel()
+            parameterModel.setName(key)
+            parameterModel.setDescription(val?.getDescription())
+            parameterModel.setExample(val?.example)
+            parameterModel.setIn(inType?.toString())
+            parameterModel.setSchema(val)
+            return parameterModel
+        }
+    }
+
     private Map<String, ExampleModel> buildExampleModels(ExampleAnnotation[] exampleAnnotations) {
         Map<String, ExampleModel> exampleMap = new HashMap<>()
         exampleAnnotations?.each { ExampleAnnotation exampleAnnotation ->
@@ -200,7 +229,8 @@ class GrailsReader implements OpenApiReader {
             exampleModel.setExternalValue(exampleAnnotation.externalValue())
             exampleMap.put(exampleAnnotation.name(), exampleModel)
         }
-        return exampleMap.isEmpty() ? null : exampleMap // If empty map is returned, an empty list of examples is shown in ui
+        return exampleMap.isEmpty() ? null : exampleMap
+        // If empty map is returned, an empty list of examples is shown in ui
     }
 
     private ResponsesModel buildResponsesModel(OperationAnnotation operationAnnotation) {
@@ -275,11 +305,17 @@ class GrailsReader implements OpenApiReader {
     }
 
     private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation) {
-        return buildSchemaModel(schemaAnnotation, schemaAnnotation?.implementation())
+        if (schemaAnnotation) {
+            return buildSchemaModel(schemaAnnotation, schemaAnnotation?.implementation())
+        }
+        return null
     }
 
     private SchemaModel buildSchemaModel(Class schemaClass) {
-        return buildSchemaModel(null, schemaClass)
+        if (schemaClass && schemaClass != Void) {
+            return buildSchemaModel(null, schemaClass)
+        }
+        return null
     }
 
     private SchemaModel buildSchemaModel(Class schemaClass, Type genericType) {
@@ -287,13 +323,19 @@ class GrailsReader implements OpenApiReader {
     }
 
     private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation, Class schemaClass, Type genericType = null) {
+        // TODO fetch, if exists, @Schema/@ArraySchema annotation on schemaClass which overwrites
         SchemaModel existingSchema = schemaClass ? findSchemaModelInOpenAPI(schemaClass) : null
         if (existingSchema) {
             return new SchemaModel($ref: getSchemaRef(existingSchema))
         }
         // Schema does not already exist, so we build it. Annotation takes precedence
-        // TODO support more properties from SchemaAnnotation
         Map schemaArgs = buildSchemaModelArgs(schemaAnnotation, schemaClass)
+
+        // Fetch Schema annotation on class level, if existing. This annotation has higher precedence
+        SchemaAnnotation schemaAnnotationOnClass = schemaClass?.getAnnotation(SchemaAnnotation) as SchemaAnnotation
+        if (schemaAnnotationOnClass) {
+            schemaArgs = MapHelper.merge(schemaArgs, buildSchemaModelArgs(schemaAnnotationOnClass, schemaClass))
+        }
         SchemaModel schemaModel = new SchemaModel(schemaArgs)
         String name = schemaModel.name
 
@@ -310,7 +352,7 @@ class GrailsReader implements OpenApiReader {
             }
         } else if (schemaModel.type == SchemaType.ARRAY.swaggerName) { // Type if List-like collection
             schemaModel = new ArraySchema(schemaArgs)
-            Class componentClass = schemaClass.componentType ?: (genericType?.actualTypeArguments[0] as Class)
+            Class componentClass = schemaClass.componentType ?: (genericType?.actualTypeArguments?.getAt(0) as Class)
             componentClass = componentClass ?: Object
             schemaModel.items = buildSchemaModel(componentClass)
         } else if (schemaClass.isEnum()) { // Type is enum
@@ -325,14 +367,81 @@ class GrailsReader implements OpenApiReader {
         String type = schemaAnnotation?.type() ?: typeAndFormat.typeName
         String format = schemaAnnotation?.format() ?: typeAndFormat.format
         String name = schemaNameFromClass(schemaClass)
-        return [
-            type       : type,
-            format     : format,
-            name       : name,
-            title      : schemaAnnotation?.title(),
-            description: schemaAnnotation?.description(),
-            enum       : schemaAnnotation?.allowableValues()
+        DiscriminatorModel discriminatorModel = buildDiscriminatorModel(schemaAnnotation?.discriminatorProperty(),
+                schemaAnnotation?.discriminatorMapping())
+        List<SchemaModel> prefixItems = schemaAnnotation?.prefixItems()?.collect { buildSchemaModel(it) }
+        List<SchemaModel> allOf = schemaAnnotation?.allOf()?.collect { buildSchemaModel(it) } ?: null
+        List<SchemaModel> anyOf = schemaAnnotation?.anyOf()?.collect { buildSchemaModel(it) } ?: null
+        List<SchemaModel> oneOf = schemaAnnotation?.oneOf()?.collect { buildSchemaModel(it) } ?: null
+        Map<String, SchemaModel> patternProperties = schemaAnnotation?.patternProperties()?.collectEntries {
+            return [it.key(), buildSchemaModel(it.value())]
+        }
+
+        // TODO support @ArraySchema
+        Map<String, Object> args = [
+                name                 : name,
+                title                : schemaAnnotation?.title() ?: null,
+                multipleOf           : schemaAnnotation?.multipleOf() ?: null,
+                maximum              : ValueMapper.stringToBigDecimal(schemaAnnotation?.maximum()),
+                exclusiveMaximum     : schemaAnnotation?.exclusiveMaximum() ?: null,
+                minimum              : ValueMapper.stringToBigDecimal(schemaAnnotation?.minimum()),
+                exclusiveMinimum     : schemaAnnotation?.exclusiveMinimum() ?: null,
+                pattern              : schemaAnnotation?.pattern() ?: null,
+                maxItems             : null, // from @ArraySchema
+                minItems             : null, // from @ArraySchema
+                uniqueItems          : null, // from @ArraySchema
+                required             : schemaAnnotation?.requiredProperties(),
+                type                 : type,
+                not                  : buildSchemaModel(schemaAnnotation?.not()),
+                description          : schemaAnnotation?.description(),
+                format               : format,
+                nullable             : schemaAnnotation?.nullable(),
+                readOnly             : EnumMapper.accessModeToReadOnly(schemaAnnotation?.accessMode()),
+                writeOnly            : EnumMapper.accessModeToWriteOnly(schemaAnnotation?.accessMode()),
+                externalDocs         : buildExternalDocumentationModel(schemaAnnotation?.externalDocs()),
+                deprecated           : schemaAnnotation?.deprecated() ?: null,
+                xml                  : null, // Does not exist in @Schema annotation
+                enum                 : schemaAnnotation?.allowableValues(),
+                discriminator        : discriminatorModel,
+                prefixItems          : prefixItems,
+                allOf                : allOf,
+                anyOf                : anyOf,
+                oneOf                : oneOf,
+                types                : schemaAnnotation?.types(),
+                patternProperties    : patternProperties,
+                exclusiveMaximumValue: ValueMapper.intToBigDecimal(schemaAnnotation?.exclusiveMaximumValue()),
+                exclusiveMinimumValue: ValueMapper.intToBigDecimal(schemaAnnotation?.exclusiveMinimumValue()),
+                contains             : buildSchemaModel(schemaAnnotation?.contains())
         ]
+        if (schemaAnnotation?.example()) {
+            args.example = schemaAnnotation?.example()
+        }
+        if (schemaClass == String) {
+            args.maxLength = schemaAnnotation?.maxLength()
+            args.minLength = schemaAnnotation?.minLength()
+        }
+        if (schemaAnnotation?.additionalProperties() == Schema.AdditionalPropertiesValue.TRUE) {
+            args.maxProperties = schemaAnnotation?.maxProperties()
+            args.minProperties = schemaAnnotation?.minProperties()
+        }
+        return args
+    }
+
+    private DiscriminatorModel buildDiscriminatorModel(String discriminatorProperty,
+                                                       DiscriminatorMappingAnnotation[] discriminatorMappingAnnotations) {
+        if (discriminatorProperty && discriminatorMappingAnnotations) {
+            DiscriminatorModel discriminatorModel = new DiscriminatorModel()
+            discriminatorModel.setPropertyName(discriminatorProperty)
+            discriminatorMappingAnnotations.each {
+                if (it.schema()) {
+                    SchemaModel schemaModel = findSchemaModelInOpenAPI(it.schema()) ?: buildSchemaModel(it.schema())
+                    String ref = getSchemaRef(schemaModel)
+                    discriminatorModel.mapping(it.value(), ref)
+                }
+            }
+            return discriminatorModel
+        }
+        return null
     }
 
     private Map<String, SchemaModel> buildSchemaProperties(Class clazz) {
@@ -359,6 +468,16 @@ class GrailsReader implements OpenApiReader {
             propMap[fieldName] = propSchema
         }
         return propMap
+    }
+
+    private OpenAPI buildOpenAPI() {
+        // TODO fetch more info from config
+        Info info = new Info(title: swaggerConfig?.info?.title, description: swaggerConfig?.info?.description)
+        return new OpenAPI(info: info)
+    }
+
+    private NavigableMap getSwaggerConfig() {
+        return Holders.config?.swagger as NavigableMap
     }
 
     private SchemaModel findSchemaModelInOpenAPI(Class clazz) {
@@ -388,13 +507,19 @@ class GrailsReader implements OpenApiReader {
     @CompileStatic
     private static findControllerMethodFromAction(Class controllerClass, String actionName) {
         return controllerClass.methods
-            .findAll { it.name == actionName }
-            .sort { it.parameterCount }
-            .last()
+                .findAll { it.name == actionName }
+                .sort { it.parameterCount }
+                .last()
     }
 
     @CompileStatic
-    static String getSchemaRef(SchemaModel schema) {
+    private static boolean typeIsCommandObject(Class type) {
+        return type?.name?.endsWith('Command')
+    }
+
+    @CompileStatic
+    private static String getSchemaRef(SchemaModel schema) {
         return "#/components/schemas/${schema.name}"
     }
+
 }

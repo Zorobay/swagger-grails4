@@ -1,6 +1,6 @@
 <%@ page import="swagger.grails4.SwaggerController" %>
-<asset:javascript src="swagger-ui-bundle.js"/>
-<asset:javascript src="swagger-ui-standalone-preset.js"/>
+<asset:javascript src="swagger-ui-bundle.js" charset="UTF-8"/>
+<asset:javascript src="swagger-ui-standalone-preset.js" charset="UTF-8"/>
 <asset:stylesheet src="swagger-ui.css"/>
 <asset:image src="favicon-16x16.png"/>
 <asset:image src="favicon-32x32.png"/>

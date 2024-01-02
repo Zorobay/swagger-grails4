@@ -4,12 +4,21 @@ import groovy.util.logging.Slf4j
 import io.swagger.v3.oas.annotations.enums.Explode
 import io.swagger.v3.oas.annotations.enums.ParameterStyle
 import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.Schema.AccessMode
 import io.swagger.v3.oas.models.parameters.Parameter
 
 @Slf4j
 class EnumMapper {
 
-    static boolean requiredModeToBoolean(Schema.RequiredMode requiredMode) {
+    static Boolean accessModeToReadOnly(AccessMode accessMode) {
+        return accessMode == AccessMode.READ_ONLY ? true : null
+    }
+
+    static Boolean accessModeToWriteOnly(AccessMode accessMode) {
+        return accessMode == AccessMode.WRITE_ONLY ? true : null
+    }
+
+    static Boolean requiredModeToBoolean(Schema.RequiredMode requiredMode) {
         switch (requiredMode) {
             case Schema.RequiredMode.REQUIRED: return true
             case Schema.RequiredMode.NOT_REQUIRED: return true

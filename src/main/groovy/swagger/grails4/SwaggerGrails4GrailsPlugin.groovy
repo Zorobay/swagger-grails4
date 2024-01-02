@@ -2,6 +2,7 @@ package swagger.grails4
 
 import grails.plugins.*
 import io.swagger.v3.oas.models.OpenAPI
+import io.swagger.v3.oas.models.info.Info
 
 class SwaggerGrails4GrailsPlugin extends Plugin {
 
@@ -42,9 +43,6 @@ Brief summary/description of the plugin.
 //    def scm = [ url: "http://svn.codehaus.org/grails-plugins/" ]
 
     Closure doWithSpring() { {->
-            openApiService(OpenApiService) { bean ->
-                openAPI = new OpenAPI()
-            }
         }
     }
 
