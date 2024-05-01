@@ -66,7 +66,6 @@ dependencies {
     // ============ Paranamer (lookup parameter names from method) =================
     // https://mvnrepository.com/artifact/com.thoughtworks.paranamer/paranamer
     implementation group: 'com.thoughtworks.paranamer', name: 'paranamer', version: '2.8'
-
 }
 
 [compileJava, compileTestJava, compileGroovy, compileTestGroovy]*.options*.encoding = 'UTF-8'

@@ -15,10 +15,14 @@ import io.swagger.v3.oas.annotations.ExternalDocumentation as ExternalDocumentat
 import io.swagger.v3.oas.annotations.Operation as OperationAnnotation
 import io.swagger.v3.oas.annotations.Parameter as ParameterAnnotation
 import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.headers.Header as HeaderAnnotation
+import io.swagger.v3.oas.annotations.links.Link as LinkAnnotation
+import io.swagger.v3.oas.annotations.links.LinkParameter as LinkParameterAnnotation
+import io.swagger.v3.oas.annotations.media.ArraySchema as ArraySchemaAnnotation
 import io.swagger.v3.oas.annotations.media.Content as ContentAnnotation
 import io.swagger.v3.oas.annotations.media.DiscriminatorMapping as DiscriminatorMappingAnnotation
+import io.swagger.v3.oas.annotations.media.Encoding as EncodingAnnotation
 import io.swagger.v3.oas.annotations.media.ExampleObject as ExampleAnnotation
-import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema as SchemaAnnotation
 import io.swagger.v3.oas.annotations.parameters.RequestBody as RequestBodyAnnotation
 import io.swagger.v3.oas.annotations.responses.ApiResponse as ResponseAnnotation
@@ -28,28 +32,31 @@ import io.swagger.v3.oas.annotations.servers.ServerVariable as ServerVariableAnn
 import io.swagger.v3.oas.annotations.tags.Tag as TagAnnotation
 import io.swagger.v3.oas.integration.api.OpenAPIConfiguration
 import io.swagger.v3.oas.integration.api.OpenApiReader
-import io.swagger.v3.oas.models.ExternalDocumentation as ExternalDocumentationModel
+import io.swagger.v3.oas.models.ExternalDocumentation
 import io.swagger.v3.oas.models.OpenAPI
-import io.swagger.v3.oas.models.Operation as OperationModel
-import io.swagger.v3.oas.models.PathItem as PathItemModel
-import io.swagger.v3.oas.models.Paths as PathsModel
-import io.swagger.v3.oas.models.examples.Example as ExampleModel
+import io.swagger.v3.oas.models.Operation
+import io.swagger.v3.oas.models.PathItem
+import io.swagger.v3.oas.models.Paths
+import io.swagger.v3.oas.models.examples.Example
+import io.swagger.v3.oas.models.headers.Header
 import io.swagger.v3.oas.models.info.Info
+import io.swagger.v3.oas.models.links.Link
 import io.swagger.v3.oas.models.media.ArraySchema
-import io.swagger.v3.oas.models.media.Content as ContentModel
-import io.swagger.v3.oas.models.media.Discriminator as DiscriminatorModel
+import io.swagger.v3.oas.models.media.Content
+import io.swagger.v3.oas.models.media.Discriminator
+import io.swagger.v3.oas.models.media.Encoding
 import io.swagger.v3.oas.models.media.MapSchema
-import io.swagger.v3.oas.models.media.MediaType as MediaTypeModel
-import io.swagger.v3.oas.models.media.Schema as SchemaModel
-import io.swagger.v3.oas.models.parameters.Parameter as ParameterModel
-import io.swagger.v3.oas.models.parameters.RequestBody as RequestBodyModel
-import io.swagger.v3.oas.models.responses.ApiResponse as ResponseModel
-import io.swagger.v3.oas.models.responses.ApiResponses as ResponsesModel
-import io.swagger.v3.oas.models.security.SecurityRequirement as SecurityRequirementModel
-import io.swagger.v3.oas.models.servers.Server as ServerModel
-import io.swagger.v3.oas.models.servers.ServerVariable as ServerVariableModel
-import io.swagger.v3.oas.models.servers.ServerVariables as ServerVariablesModel
-import io.swagger.v3.oas.models.tags.Tag as TagModel
+import io.swagger.v3.oas.models.media.MediaType
+import io.swagger.v3.oas.models.media.Schema
+import io.swagger.v3.oas.models.parameters.Parameter
+import io.swagger.v3.oas.models.parameters.RequestBody
+import io.swagger.v3.oas.models.responses.ApiResponse
+import io.swagger.v3.oas.models.responses.ApiResponses
+import io.swagger.v3.oas.models.security.SecurityRequirement
+import io.swagger.v3.oas.models.servers.Server
+import io.swagger.v3.oas.models.servers.ServerVariable
+import io.swagger.v3.oas.models.servers.ServerVariables
+import io.swagger.v3.oas.models.tags.Tag
 import org.grails.config.NavigableMap
 import swagger.grails4.enums.SchemaType
 import swagger.grails4.helpers.EnumMapper
@@ -60,7 +67,7 @@ import swagger.grails4.model.TypeAndFormat
 
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
-import java.lang.reflect.Parameter
+import java.lang.reflect.Parameter as JavaParameter
 import java.lang.reflect.Type
 
 @Slf4j
@@ -86,68 +93,68 @@ class GrailsReader implements OpenApiReader {
         classes.each { Class controllerClass ->
             log.info("Processing controller: ${controllerClass}")
             GrailsControllerClass controllerArtifact = controllers.find { it.clazz == controllerClass }
-            TagModel tag = buildTagModel(controllerArtifact)
+            Tag tag = buildTag(controllerArtifact)
             openAPI.addTagsItem(tag)
-            openAPI.setPaths(openAPI.paths ?: new PathsModel()) // paths is initialized as null in OpenAPI
+            openAPI.setPaths(openAPI.paths ?: new Paths()) // paths is initialized as null in OpenAPI
 
             controllerArtifact.actions.each { String actionName ->
                 log.info("Processing action: ${actionName}")
                 Method method = findControllerMethodFromAction(controllerClass, actionName)
-                OperationModel operation = buildOperationModel(controllerArtifact, method)
+                Operation operation = buildOperation(controllerArtifact, method)
                 if (operation) {
                     operation.addTagsItem(tag.name)
-                    buildAndAddPathItemModel(controllerArtifact, method, operation)
+                    buildAndAddPathItem(controllerArtifact, method, operation)
                 }
             }
         }
         return openAPI
     }
 
-    private TagModel buildTagModel(GrailsControllerClass controller) {
-        TagModel tagModel = new TagModel()
+    private Tag buildTag(GrailsControllerClass controller) {
+        Tag tag = new Tag()
         TagAnnotation tagAnnotation = controller.clazz.getAnnotation(TagAnnotation) as TagAnnotation
-        tagModel.setName(tagAnnotation.name())
-        tagModel.setDescription(tagAnnotation.description())
+        tag.setName(tagAnnotation.name())
+        tag.setDescription(tagAnnotation.description())
 
         // TODO support extensions
-        ExternalDocumentationModel externalDocumentationModel = buildExternalDocumentationModel(tagAnnotation.externalDocs())
-        tagModel.setExternalDocs(externalDocumentationModel)
-        return tagModel
+        ExternalDocumentation externalDocumentation = buildExternalDocumentation(tagAnnotation.externalDocs())
+        tag.setExternalDocs(externalDocumentation)
+        return tag
     }
 
-    private void buildAndAddPathItemModel(GrailsControllerClass controller, Method method, OperationModel operation) {
-        PathItemModel pathItemModel = new PathItemModel()
-        PathItemModel.HttpMethod httpMethod = PathItemModel.HttpMethod.GET
+    private void buildAndAddPathItem(GrailsControllerClass controller, Method method, Operation operation) {
+        PathItem pathItem = new PathItem()
+        PathItem.HttpMethod httpMethod = PathItem.HttpMethod.GET
         String url = ''
         UrlMapping urlMapping = getUrlMappingOfAction(controller, method.name)
         if (urlMapping) {
             // TODO can we handle UrlMappings magic?
             url = urlMapping.urlData.urlPattern
             String httpMethodStr = urlMapping.httpMethod.toUpperCase()
-            httpMethod = PathItemModel.HttpMethod.valueOf(httpMethodStr)
+            httpMethod = PathItem.HttpMethod.valueOf(httpMethodStr)
         } else {
             // UrlMapping is not explicitly defined for controller/action, so we have to build it from the controller
             UrlCreator urlCreator = urlMappingsHolder.getReverseMapping(
-                    controller.logicalPropertyName, method.name, controller.pluginName, [:])
+                controller.logicalPropertyName, method.name, controller.pluginName, [:])
             url = urlCreator.createURL(controller.logicalPropertyName, method.name, [:], 'UTF-8')
         }
-        pathItemModel.operation(httpMethod, operation)
-        openAPI.paths.addPathItem(url, pathItemModel)
+        pathItem.operation(httpMethod, operation)
+        openAPI.paths.addPathItem(url, pathItem)
     }
 
-    private OperationModel buildOperationModel(GrailsControllerClass controller, Method method) {
+    private Operation buildOperation(GrailsControllerClass controller, Method method) {
         OperationAnnotation operationAnnotation = method.getAnnotation(OperationAnnotation)
         if (operationAnnotation) {
             // TODO support callbacks
-            OperationModel operationModel = new OperationModel()
-            operationModel.setSummary(operationAnnotation.summary())
-            operationModel.setDescription(operationAnnotation.description())
-            operationModel.setExternalDocs(buildExternalDocumentationModel(operationAnnotation.externalDocs()))
-            operationModel.setOperationId(operationAnnotation.operationId())
-            operationModel.setRequestBody(buildRequestBodyModel(operationAnnotation.requestBody()))
-            operationModel.setDeprecated(operationAnnotation.deprecated())
-            operationModel.setSecurity(buildSecurityRequirementModels(operationAnnotation.security()))
-            operationModel.setServers(buildServerModels(operationAnnotation.servers()))
+            Operation operation = new Operation()
+            operation.setSummary(operationAnnotation.summary())
+            operation.setDescription(operationAnnotation.description())
+            operation.setExternalDocs(buildExternalDocumentation(operationAnnotation.externalDocs()))
+            operation.setOperationId(operationAnnotation.operationId())
+            operation.setRequestBody(buildRequestBody(operationAnnotation.requestBody()))
+            operation.setDeprecated(operationAnnotation.deprecated())
+            operation.setSecurity(buildSecurityRequirements(operationAnnotation.security()))
+            operation.setServers(buildServers(operationAnnotation.servers()))
 
             Paranamer paranamer = new CachingParanamer(new BytecodeReadingParanamer())
             List<String> paramNames = paranamer.lookupParameterNames(method)
@@ -156,146 +163,205 @@ class GrailsReader implements OpenApiReader {
             // Check if there is a single command object as parameter
             if (method.parameterCount == 1 && typeIsCommandObject(method.parameters.first().type)) {
                 ParameterAnnotation parameterAnnotation = operationAnnotation.parameters()
-                        .find { it.name() == paramNames[0] }
-                operationModel.setParameters(buildParameterModelsFromCommand(parameterAnnotation, method.parameters.first().type))
+                    .find { it.name() == paramNames[0] }
+                operation.setParameters(buildParametersFromCommand(parameterAnnotation, method.parameters.first().type))
             } else {
-                method.parameters.eachWithIndex { Parameter parameter, int i ->
+                method.parameters.eachWithIndex { JavaParameter javaParam, int i ->
                     String parameterName = paramNames[i]
-                    ParameterModel parameterModel = buildParameterModel(operationAnnotation, parameter, parameterName)
-                    operationModel.addParametersItem(parameterModel)
+                    Parameter parameter = buildParameter(operationAnnotation, javaParam, parameterName)
+                    operation.addParametersItem(parameter)
                 }
             }
 
             // Build responses of operation
             operationAnnotation.responses().each { ResponseAnnotation apiResponse ->
-                ResponsesModel responsesModel = buildResponsesModel(operationAnnotation)
-                operationModel.setResponses(responsesModel)
+                ApiResponses responses = buildResponses(operationAnnotation)
+                operation.setResponses(responses)
             }
 
-            return operationModel
+            return operation
         }
         return null
     }
 
-    private RequestBodyModel buildRequestBodyModel(RequestBodyAnnotation requestBodyAnnotation) {
-        RequestBodyModel requestBodyModel = new RequestBodyModel()
-        requestBodyModel.setDescription(requestBodyAnnotation?.description())
-        requestBodyModel.setContent(buildContentModel(requestBodyAnnotation?.content()))
-        requestBodyModel.setRequired(requestBodyAnnotation?.required())
-        return requestBodyModel
+    private RequestBody buildRequestBody(RequestBodyAnnotation requestBodyAnnotation) {
+        RequestBody requestBody = new RequestBody()
+        requestBody.setDescription(requestBodyAnnotation?.description())
+        requestBody.setContent(buildContent(requestBodyAnnotation?.content()))
+        requestBody.setRequired(requestBodyAnnotation?.required())
+        return requestBody
     }
 
-    private ParameterModel buildParameterModel(OperationAnnotation operationAnnotation, Parameter parameter, String paramName) {
+    private Parameter buildParameter(OperationAnnotation operationAnnotation, JavaParameter javaParam, String paramName) {
         ParameterAnnotation parameterAnnotation = operationAnnotation.parameters().find { it.name() == paramName }
-        ParameterModel parameterModel = new ParameterModel()
-        parameterModel.setName(parameterAnnotation?.name() ?: paramName)
-        parameterModel.setIn(parameterAnnotation?.in()?.toString())
-        parameterModel.setDescription(parameterAnnotation?.description())
-        parameterModel.setRequired(parameterAnnotation?.required())
-        parameterModel.setDeprecated(parameterAnnotation?.deprecated())
-        parameterModel.setAllowEmptyValue(parameterAnnotation?.allowEmptyValue())
-        parameterModel.setStyle(EnumMapper.styleEnumFromParameterStyle(parameterAnnotation?.style()))
-        parameterModel.setExplode(EnumMapper.explodeToBoolean(parameterAnnotation?.explode()))
-        parameterModel.setAllowReserved(parameterAnnotation?.allowReserved())
-        parameterModel.setExamples(buildExampleModels(parameterAnnotation?.examples()))
-        parameterModel.setExample(parameterAnnotation?.example() ?: null)
-        parameterModel.setSchema(buildSchemaModel(parameterAnnotation?.schema(), parameter.type))
-        parameterModel.setContent(buildContentModel(parameterAnnotation?.content()))
-        return parameterModel
+        Parameter parameter = new Parameter()
+        parameter.setName(parameterAnnotation?.name() ?: paramName)
+        parameter.setIn(parameterAnnotation?.in()?.toString())
+        parameter.setDescription(parameterAnnotation?.description())
+        parameter.setRequired(parameterAnnotation?.required())
+        parameter.setDeprecated(parameterAnnotation?.deprecated())
+        parameter.setAllowEmptyValue(parameterAnnotation?.allowEmptyValue())
+        parameter.setStyle(EnumMapper.styleEnumFromParameterStyle(parameterAnnotation?.style()))
+        parameter.setExplode(EnumMapper.explodeToBoolean(parameterAnnotation?.explode()))
+        parameter.setAllowReserved(parameterAnnotation?.allowReserved())
+        parameter.setExamples(buildExamples(parameterAnnotation?.examples()))
+        parameter.setExample(parameterAnnotation?.example() ?: null)
+        parameter.setSchema(buildSchema(parameterAnnotation?.schema(), javaParam.type))
+        parameter.setContent(buildContent(parameterAnnotation?.content()))
+        return parameter
     }
 
-    private List<ParameterModel> buildParameterModelsFromCommand(ParameterAnnotation parameterAnnotation, Class commandClass) {
+    private List<Parameter> buildParametersFromCommand(ParameterAnnotation parameterAnnotation, Class commandClass) {
         ParameterIn inType = parameterAnnotation.in()
-        Map<String, SchemaModel> properties = buildSchemaProperties(commandClass)
+        Map<String, Schema> properties = buildSchemaProperties(commandClass)
 
-        return properties.collect { String key, SchemaModel val ->
-            ParameterModel parameterModel = new ParameterModel()
-            parameterModel.setName(key)
-            parameterModel.setDescription(val?.getDescription())
-            parameterModel.setExample(val?.example)
-            parameterModel.setIn(inType?.toString())
-            parameterModel.setSchema(val)
-            return parameterModel
+        return properties.collect { String key, Schema val ->
+            Parameter parameter = new Parameter()
+            parameter.setName(key)
+            parameter.setDescription(val?.getDescription())
+            parameter.setExample(val?.example)
+            parameter.setIn(inType?.toString())
+            parameter.setSchema(val)
+            return parameter
         }
     }
 
-    private Map<String, ExampleModel> buildExampleModels(ExampleAnnotation[] exampleAnnotations) {
-        Map<String, ExampleModel> exampleMap = new HashMap<>()
+    private Map<String, Example> buildExamples(ExampleAnnotation[] exampleAnnotations) {
+        Map<String, Example> exampleMap = new HashMap<>()
         exampleAnnotations?.each { ExampleAnnotation exampleAnnotation ->
-            ExampleModel exampleModel = new ExampleModel()
-            exampleModel.setSummary(exampleAnnotation.summary())
-            exampleModel.setDescription(exampleAnnotation.description())
-            exampleModel.setValue(exampleAnnotation.value())
-            exampleModel.setExternalValue(exampleAnnotation.externalValue())
-            exampleMap.put(exampleAnnotation.name(), exampleModel)
+            Example example = new Example()
+            example.setSummary(exampleAnnotation.summary())
+            example.setDescription(exampleAnnotation.description())
+            example.setValue(exampleAnnotation.value())
+            example.setExternalValue(exampleAnnotation.externalValue())
+            exampleMap.put(exampleAnnotation.name(), example)
         }
+
+        // If empty map is returned, an empty list of examples is shown in ui, therefore we return null
         return exampleMap.isEmpty() ? null : exampleMap
-        // If empty map is returned, an empty list of examples is shown in ui
     }
 
-    private ResponsesModel buildResponsesModel(OperationAnnotation operationAnnotation) {
-        ResponsesModel responsesModel = new ResponsesModel()
+    private ApiResponses buildResponses(OperationAnnotation operationAnnotation) {
+        ApiResponses responses = new ApiResponses()
         operationAnnotation.responses().each { ResponseAnnotation responseAnnotation ->
-            ResponseModel responseModel = new ResponseModel()
-            responseModel.setDescription(responseAnnotation.description())
-            responseModel.setHeaders(SwaggerAnnotationMapper.mapHeadersAnnotation(responseAnnotation.headers()))
-            responseModel.setLinks(SwaggerAnnotationMapper.mapLinksAnnotation(responseAnnotation.links()))
-            responseModel.setContent(buildContentModel(responseAnnotation.content()))
-
-            responsesModel.addApiResponse(responseAnnotation.responseCode(), responseModel)
+            ApiResponse response = new ApiResponse()
+            response.setDescription(responseAnnotation.description())
+            responseAnnotation.headers().each { HeaderAnnotation headerAnnotation ->
+                response.addHeaderObject(headerAnnotation.name(), buildHeader(headerAnnotation))
+            }
+            responseAnnotation.links().each { LinkAnnotation linkAnnotation ->
+                response.addLink(linkAnnotation.name(), buildLink(linkAnnotation))
+            }
+            response.setContent(buildContent(responseAnnotation.content()))
+            responses.addApiResponse(responseAnnotation.responseCode(), response)
         }
-        return responsesModel
+        return responses
     }
 
-    private ExternalDocumentationModel buildExternalDocumentationModel(ExternalDocumentationAnnotation externalDocAnnotation) {
-        ExternalDocumentationModel externalDocumentationModel = new ExternalDocumentationModel()
-        externalDocumentationModel.setDescription(externalDocAnnotation?.description())
-        externalDocumentationModel.setUrl(externalDocAnnotation?.url())
-        return externalDocumentationModel
+    private Link buildLink(LinkAnnotation linkAnnotation) {
+        Link link = new Link()
+        link.setOperationRef(linkAnnotation.operationRef())
+        link.setOperationId(linkAnnotation.operationId())
+        linkAnnotation.parameters().each { LinkParameterAnnotation linkParameterAnnotation ->
+            link.addParameter(linkParameterAnnotation.name(), linkParameterAnnotation.expression())
+        }
+        link.setRequestBody(linkAnnotation.requestBody())
+        return link
     }
 
-    private List<SecurityRequirementModel> buildSecurityRequirementModels(SecurityRequirementAnnotation[] securityRequirementAnnotations) {
+    private ExternalDocumentation buildExternalDocumentation(ExternalDocumentationAnnotation externalDocAnnotation) {
+        ExternalDocumentation externalDocumentation = new ExternalDocumentation()
+        externalDocumentation.setDescription(externalDocAnnotation?.description())
+        externalDocumentation.setUrl(externalDocAnnotation?.url())
+        return externalDocumentation
+    }
+
+    private List<SecurityRequirement> buildSecurityRequirements(SecurityRequirementAnnotation[] securityRequirementAnnotations) {
         return securityRequirementAnnotations?.collect { SecurityRequirementAnnotation securityRequirementAnnotation ->
-            SecurityRequirementModel securityRequirementModel = new SecurityRequirementModel()
-            securityRequirementModel.addList(securityRequirementAnnotation.name(), securityRequirementAnnotation.scopes()?.toList())
-            return securityRequirementModel
+            SecurityRequirement securityRequirement = new SecurityRequirement()
+            securityRequirement.addList(securityRequirementAnnotation.name(), securityRequirementAnnotation.scopes()?.toList())
+            return securityRequirement
         }
     }
 
-    private List<ServerModel> buildServerModels(ServerAnnotation[] serverAnnotations) {
+    private List<Server> buildServers(ServerAnnotation[] serverAnnotations) {
         return serverAnnotations?.collect { ServerAnnotation serverAnnotation ->
-            ServerModel serverModel = new ServerModel()
-            serverModel.setUrl(serverAnnotation.url())
-            serverModel.setDescription(serverAnnotation.description())
-            serverModel.setVariables(buildServerVariablesModel(serverAnnotation.variables()))
+            Server server = new Server()
+            server.setUrl(serverAnnotation.url())
+            server.setDescription(serverAnnotation.description())
+            server.setVariables(buildServerVariables(serverAnnotation.variables()))
         }
     }
 
-    private ServerVariablesModel buildServerVariablesModel(ServerVariableAnnotation[] serverVariableAnnotations) {
-        ServerVariablesModel serverVariablesModel = new ServerVariablesModel()
+    private ServerVariables buildServerVariables(ServerVariableAnnotation[] serverVariableAnnotations) {
+        ServerVariables serverVariables = new ServerVariables()
         serverVariableAnnotations?.each { ServerVariableAnnotation serverVariableAnnotation ->
-            ServerVariableModel serverVariableModel = new ServerVariableModel()
-            serverVariableModel.setEnum(serverVariableAnnotation.allowableValues()?.toList())
-            serverVariableModel.setDefault(serverVariableAnnotation.defaultValue())
-            serverVariableModel.setDescription(serverVariableAnnotation.description())
-            serverVariablesModel.addServerVariable(serverVariableAnnotation.name(), serverVariableModel)
+            ServerVariable serverVariable = new ServerVariable()
+            serverVariable.setEnum(serverVariableAnnotation.allowableValues()?.toList())
+            serverVariable.setDefault(serverVariableAnnotation.defaultValue())
+            serverVariable.setDescription(serverVariableAnnotation.description())
+            serverVariables.addServerVariable(serverVariableAnnotation.name(), serverVariable)
         }
-        return serverVariablesModel
+        return serverVariables
     }
 
-    private ContentModel buildContentModel(ContentAnnotation[] contentAnnotations) {
-        ContentModel contentModel = new ContentModel()
+    private Content buildContent(ContentAnnotation[] contentAnnotations) {
+        Content content = new Content()
         contentAnnotations?.each { ContentAnnotation contentAnnotation ->
-            contentModel.addMediaType(contentAnnotation.mediaType(), buildMediaTypeModel(contentAnnotation.schema()))
+            MediaType mediaType = new MediaType()
+            if (ContentAnnotation.class.getMethod('schema').getDefaultValue() == contentAnnotation.schema()) {
+                mediaType = buildMediaType(contentAnnotation.array())
+            } else {
+                mediaType = buildMediaType(contentAnnotation.schema())
+            }
+            // Build encoding model for each MediaType from the ContentAnnotation
+            contentAnnotation.encoding()?.each { EncodingAnnotation encodingAnnotation ->
+                mediaType.addEncoding(encodingAnnotation.name(), buildEncoding(encodingAnnotation))
+            }
+
+            content.addMediaType(contentAnnotation.mediaType(), mediaType)
         }
-        return contentModel
+        return content
     }
 
-    private MediaTypeModel buildMediaTypeModel(SchemaAnnotation schemaAnnotation) {
-        MediaTypeModel mediaTypeModel = new MediaTypeModel()
-        // TODO examples, encoding, extensions
-        mediaTypeModel.setSchema(buildSchemaModel(schemaAnnotation))
-        return mediaTypeModel
+    private MediaType buildMediaType(SchemaAnnotation schemaAnnotation) {
+        MediaType mediaType = new MediaType()
+        mediaType.setSchema(buildSchema(schemaAnnotation))
+        if (schemaAnnotation.example()) {
+            mediaType.setExample(schemaAnnotation.example())
+        }
+        return mediaType
+    }
+
+    private MediaType buildMediaType(ArraySchemaAnnotation arraySchemaAnnotation) {
+        MediaType mediaType = new MediaType()
+        ArraySchema arraySchema = buildArraySchema(arraySchemaAnnotation)
+        arraySchema.setMaxItems(arraySchemaAnnotation.maxItems())
+        arraySchema.setMinItems(arraySchemaAnnotation.minItems())
+        mediaType.setSchema(buildArraySchema(arraySchemaAnnotation))
+        return mediaType
+    }
+
+    private Encoding buildEncoding(EncodingAnnotation encodingAnnotation) {
+        Encoding encoding = new Encoding()
+        encoding.setContentType(encodingAnnotation.contentType())
+        encodingAnnotation.headers().each { HeaderAnnotation headerAnnotation ->
+            encoding.addHeader(headerAnnotation.name(), buildHeader(headerAnnotation))
+        }
+        // TODO not sure how styles are used here https://github.com/OAI/OpenAPI-Specification/blob/3.0.1/versions/3.0.1.md#encodingStyle
+        // encoding.setStyle(??)
+        encoding.setExplode(encodingAnnotation.explode())
+        encoding.setAllowReserved(encodingAnnotation.allowReserved())
+        return encoding
+    }
+
+    private Header buildHeader(HeaderAnnotation headerAnnotation) {
+        Header header = new Header()
+        header.setDescription(headerAnnotation.description())
+        header.setRequired(headerAnnotation.required())
+        header.setDeprecated(headerAnnotation.deprecated())
+        header.setSchema(buildSchema(headerAnnotation.schema()))
+        return header
     }
 
     private UrlMapping getUrlMappingOfAction(GrailsControllerClass controller, String actionName) {
@@ -304,114 +370,123 @@ class GrailsReader implements OpenApiReader {
         }
     }
 
-    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation) {
+    private ArraySchema buildArraySchema(ArraySchemaAnnotation arraySchemaAnnotation) {
+        if (arraySchemaAnnotation) {
+            ArraySchema arraySchema = new ArraySchema()
+            arraySchema.items(buildSchema(arraySchemaAnnotation.items(), arraySchemaAnnotation?.items()?.implementation()))
+            return arraySchema
+        }
+        return null
+    }
+
+    private Schema buildSchema(SchemaAnnotation schemaAnnotation) {
         if (schemaAnnotation) {
-            return buildSchemaModel(schemaAnnotation, schemaAnnotation?.implementation())
+            return buildSchema(schemaAnnotation, schemaAnnotation?.implementation())
         }
         return null
     }
 
-    private SchemaModel buildSchemaModel(Class schemaClass) {
+    private Schema buildSchema(Class schemaClass) {
         if (schemaClass && schemaClass != Void) {
-            return buildSchemaModel(null, schemaClass)
+            return buildSchema(null, schemaClass)
         }
         return null
     }
 
-    private SchemaModel buildSchemaModel(Class schemaClass, Type genericType) {
-        return buildSchemaModel(null, schemaClass, genericType)
+    private Schema buildSchema(Class schemaClass, Type genericType) {
+        return buildSchema(null, schemaClass, genericType)
     }
 
-    private SchemaModel buildSchemaModel(SchemaAnnotation schemaAnnotation, Class schemaClass, Type genericType = null) {
+    private Schema buildSchema(SchemaAnnotation schemaAnnotation, Class schemaClass, Type genericType = null) {
         // TODO fetch, if exists, @Schema/@ArraySchema annotation on schemaClass which overwrites
-        SchemaModel existingSchema = schemaClass ? findSchemaModelInOpenAPI(schemaClass) : null
+        Schema existingSchema = schemaClass ? findSchemaInOpenAPI(schemaClass) : null
         if (existingSchema) {
-            return new SchemaModel($ref: getSchemaRef(existingSchema))
+            return new Schema($ref: getSchemaRef(existingSchema))
         }
         // Schema does not already exist, so we build it. Annotation takes precedence
-        Map schemaArgs = buildSchemaModelArgs(schemaAnnotation, schemaClass)
+        Map schemaArgs = buildSchemaArgs(schemaAnnotation, schemaClass)
 
         // Fetch Schema annotation on class level, if existing. This annotation has higher precedence
         SchemaAnnotation schemaAnnotationOnClass = schemaClass?.getAnnotation(SchemaAnnotation) as SchemaAnnotation
         if (schemaAnnotationOnClass) {
-            schemaArgs = MapHelper.merge(schemaArgs, buildSchemaModelArgs(schemaAnnotationOnClass, schemaClass))
+            schemaArgs = MapHelper.merge(schemaArgs, buildSchemaArgs(schemaAnnotationOnClass, schemaClass))
         }
-        SchemaModel schemaModel = new SchemaModel(schemaArgs)
-        String name = schemaModel.name
+        Schema schema = new Schema(schemaArgs)
+        String name = schema.name
 
-        if (schemaModel.type == SchemaType.OBJECT.swaggerName) { // Type is object
+        if (schema.type == SchemaType.OBJECT.swaggerName) { // Type is object
             if (Map.isAssignableFrom(schemaClass)) { // Object type is Map
-                schemaModel = new MapSchema(schemaArgs)
+                schema = new MapSchema(schemaArgs)
                 Class componentClass = schemaClass.componentType ?: (genericType?.actualTypeArguments[0] as Class)
                 componentClass = componentClass ?: Object
-                schemaModel.additionalProperties = buildSchemaModel(componentClass)
+                schema.additionalProperties = buildSchema(componentClass)
             } else { // All other types of objects
-                Map<String, SchemaModel> schemaProperties = buildSchemaProperties(schemaClass)
-                schemaModel.properties(schemaProperties)
-                openAPI.schema(name, schemaModel)
+                Map<String, Schema> schemaProperties = buildSchemaProperties(schemaClass)
+                schema.properties(schemaProperties)
+                openAPI.schema(name, schema)
             }
-        } else if (schemaModel.type == SchemaType.ARRAY.swaggerName) { // Type if List-like collection
-            schemaModel = new ArraySchema(schemaArgs)
+        } else if (schema.type == SchemaType.ARRAY.swaggerName) { // Type if List-like collection
+            schema = new ArraySchema(schemaArgs)
             Class componentClass = schemaClass.componentType ?: (genericType?.actualTypeArguments?.getAt(0) as Class)
             componentClass = componentClass ?: Object
-            schemaModel.items = buildSchemaModel(componentClass)
+            schema.items = buildSchema(componentClass)
         } else if (schemaClass.isEnum()) { // Type is enum
-            schemaModel.enum = schemaModel.enum ?: schemaClass.values().collect { it.name() }
-            openAPI.schema(name, schemaModel) // Enums are also saved as "reusable enums"
+            schema.enum = schema.enum ?: schemaClass.values().collect { it.name() }
+            openAPI.schema(name, schema) // Enums are also saved as "reusable enums"
         }
-        return schemaModel
+        return schema
     }
 
-    private Map<String, Object> buildSchemaModelArgs(SchemaAnnotation schemaAnnotation, Class schemaClass) {
+    private Map<String, Object> buildSchemaArgs(SchemaAnnotation schemaAnnotation, Class schemaClass) {
         TypeAndFormat typeAndFormat = findTypeAndFormat(schemaClass)
         String type = schemaAnnotation?.type() ?: typeAndFormat.typeName
         String format = schemaAnnotation?.format() ?: typeAndFormat.format
         String name = schemaNameFromClass(schemaClass)
-        DiscriminatorModel discriminatorModel = buildDiscriminatorModel(schemaAnnotation?.discriminatorProperty(),
-                schemaAnnotation?.discriminatorMapping())
-        List<SchemaModel> prefixItems = schemaAnnotation?.prefixItems()?.collect { buildSchemaModel(it) }
-        List<SchemaModel> allOf = schemaAnnotation?.allOf()?.collect { buildSchemaModel(it) } ?: null
-        List<SchemaModel> anyOf = schemaAnnotation?.anyOf()?.collect { buildSchemaModel(it) } ?: null
-        List<SchemaModel> oneOf = schemaAnnotation?.oneOf()?.collect { buildSchemaModel(it) } ?: null
-        Map<String, SchemaModel> patternProperties = schemaAnnotation?.patternProperties()?.collectEntries {
-            return [it.key(), buildSchemaModel(it.value())]
+        Discriminator discriminator = buildDiscriminator(schemaAnnotation?.discriminatorProperty(),
+            schemaAnnotation?.discriminatorMapping())
+        List<Schema> prefixItems = schemaAnnotation?.prefixItems()?.collect { buildSchema(it) }
+        List<Schema> allOf = schemaAnnotation?.allOf()?.collect { buildSchema(it) } ?: null
+        List<Schema> anyOf = schemaAnnotation?.anyOf()?.collect { buildSchema(it) } ?: null
+        List<Schema> oneOf = schemaAnnotation?.oneOf()?.collect { buildSchema(it) } ?: null
+        Map<String, Schema> patternProperties = schemaAnnotation?.patternProperties()?.collectEntries {
+            return [it.key(), buildSchema(it.value())]
         }
 
         // TODO support @ArraySchema
         Map<String, Object> args = [
-                name                 : name,
-                title                : schemaAnnotation?.title() ?: null,
-                multipleOf           : schemaAnnotation?.multipleOf() ?: null,
-                maximum              : ValueMapper.stringToBigDecimal(schemaAnnotation?.maximum()),
-                exclusiveMaximum     : schemaAnnotation?.exclusiveMaximum() ?: null,
-                minimum              : ValueMapper.stringToBigDecimal(schemaAnnotation?.minimum()),
-                exclusiveMinimum     : schemaAnnotation?.exclusiveMinimum() ?: null,
-                pattern              : schemaAnnotation?.pattern() ?: null,
-                maxItems             : null, // from @ArraySchema
-                minItems             : null, // from @ArraySchema
-                uniqueItems          : null, // from @ArraySchema
-                required             : schemaAnnotation?.requiredProperties(),
-                type                 : type,
-                not                  : buildSchemaModel(schemaAnnotation?.not()),
-                description          : schemaAnnotation?.description(),
-                format               : format,
-                nullable             : schemaAnnotation?.nullable(),
-                readOnly             : EnumMapper.accessModeToReadOnly(schemaAnnotation?.accessMode()),
-                writeOnly            : EnumMapper.accessModeToWriteOnly(schemaAnnotation?.accessMode()),
-                externalDocs         : buildExternalDocumentationModel(schemaAnnotation?.externalDocs()),
-                deprecated           : schemaAnnotation?.deprecated() ?: null,
-                xml                  : null, // Does not exist in @Schema annotation
-                enum                 : schemaAnnotation?.allowableValues(),
-                discriminator        : discriminatorModel,
-                prefixItems          : prefixItems,
-                allOf                : allOf,
-                anyOf                : anyOf,
-                oneOf                : oneOf,
-                types                : schemaAnnotation?.types(),
-                patternProperties    : patternProperties,
-                exclusiveMaximumValue: ValueMapper.intToBigDecimal(schemaAnnotation?.exclusiveMaximumValue()),
-                exclusiveMinimumValue: ValueMapper.intToBigDecimal(schemaAnnotation?.exclusiveMinimumValue()),
-                contains             : buildSchemaModel(schemaAnnotation?.contains())
+            name                 : name,
+            title                : schemaAnnotation?.title() ?: null,
+            multipleOf           : schemaAnnotation?.multipleOf() ?: null,
+            maximum              : ValueMapper.stringToBigDecimal(schemaAnnotation?.maximum()),
+            exclusiveMaximum     : schemaAnnotation?.exclusiveMaximum() ?: null,
+            minimum              : ValueMapper.stringToBigDecimal(schemaAnnotation?.minimum()),
+            exclusiveMinimum     : schemaAnnotation?.exclusiveMinimum() ?: null,
+            pattern              : schemaAnnotation?.pattern() ?: null,
+            maxItems             : null, // from @ArraySchema
+            minItems             : null, // from @ArraySchema
+            uniqueItems          : null, // from @ArraySchema
+            required             : schemaAnnotation?.requiredProperties(),
+            type                 : type,
+            not                  : buildSchema(schemaAnnotation?.not()),
+            description          : schemaAnnotation?.description(),
+            format               : format,
+            nullable             : schemaAnnotation?.nullable(),
+            readOnly             : EnumMapper.accessModeToReadOnly(schemaAnnotation?.accessMode()),
+            writeOnly            : EnumMapper.accessModeToWriteOnly(schemaAnnotation?.accessMode()),
+            externalDocs         : buildExternalDocumentation(schemaAnnotation?.externalDocs()),
+            deprecated           : schemaAnnotation?.deprecated() ?: null,
+            xml                  : null, // Does not exist in @Schema annotation
+            enum                 : schemaAnnotation?.allowableValues(),
+            discriminator        : discriminator,
+            prefixItems          : prefixItems,
+            allOf                : allOf,
+            anyOf                : anyOf,
+            oneOf                : oneOf,
+            types                : schemaAnnotation?.types(),
+            patternProperties    : patternProperties,
+            exclusiveMaximumValue: ValueMapper.intToBigDecimal(schemaAnnotation?.exclusiveMaximumValue()),
+            exclusiveMinimumValue: ValueMapper.intToBigDecimal(schemaAnnotation?.exclusiveMinimumValue()),
+            contains             : buildSchema(schemaAnnotation?.contains())
         ]
         if (schemaAnnotation?.example()) {
             args.example = schemaAnnotation?.example()
@@ -420,32 +495,32 @@ class GrailsReader implements OpenApiReader {
             args.maxLength = schemaAnnotation?.maxLength()
             args.minLength = schemaAnnotation?.minLength()
         }
-        if (schemaAnnotation?.additionalProperties() == Schema.AdditionalPropertiesValue.TRUE) {
+        if (schemaAnnotation?.additionalProperties() == SchemaAnnotation.AdditionalPropertiesValue.TRUE) {
             args.maxProperties = schemaAnnotation?.maxProperties()
             args.minProperties = schemaAnnotation?.minProperties()
         }
         return args
     }
 
-    private DiscriminatorModel buildDiscriminatorModel(String discriminatorProperty,
-                                                       DiscriminatorMappingAnnotation[] discriminatorMappingAnnotations) {
+    private Discriminator buildDiscriminator(String discriminatorProperty,
+                                             DiscriminatorMappingAnnotation[] discriminatorMappingAnnotations) {
         if (discriminatorProperty && discriminatorMappingAnnotations) {
-            DiscriminatorModel discriminatorModel = new DiscriminatorModel()
-            discriminatorModel.setPropertyName(discriminatorProperty)
+            Discriminator discriminator = new Discriminator()
+            discriminator.setPropertyName(discriminatorProperty)
             discriminatorMappingAnnotations.each {
                 if (it.schema()) {
-                    SchemaModel schemaModel = findSchemaModelInOpenAPI(it.schema()) ?: buildSchemaModel(it.schema())
-                    String ref = getSchemaRef(schemaModel)
-                    discriminatorModel.mapping(it.value(), ref)
+                    Schema schema = findSchemaInOpenAPI(it.schema()) ?: buildSchema(it.schema())
+                    String ref = getSchemaRef(schema)
+                    discriminator.mapping(it.value(), ref)
                 }
             }
-            return discriminatorModel
+            return discriminator
         }
         return null
     }
 
-    private Map<String, SchemaModel> buildSchemaProperties(Class clazz) {
-        SortedMap<String, SchemaModel> propMap = new TreeMap<>()
+    private Map<String, Schema> buildSchemaProperties(Class clazz) {
+        SortedMap<String, Schema> propMap = new TreeMap<>()
         clazz.metaClass.properties.each { MetaProperty prop ->
             if (!(prop.modifiers & Modifier.PUBLIC)) {
                 return
@@ -459,11 +534,11 @@ class GrailsReader implements OpenApiReader {
             }
 
             // Try to find schema for the property type
-            SchemaModel propSchema = findSchemaModelInOpenAPI(fieldType)
+            Schema propSchema = findSchemaInOpenAPI(fieldType)
             if (!propSchema) {
                 SchemaAnnotation schemaAnnotation = prop.field?.field?.getAnnotation(SchemaAnnotation)
                 Type genericType = prop.field?.field?.genericType // Used to find out component class of Collections
-                propSchema = buildSchemaModel(schemaAnnotation, fieldType, genericType)
+                propSchema = buildSchema(schemaAnnotation, fieldType, genericType)
             }
             propMap[fieldName] = propSchema
         }
@@ -480,7 +555,7 @@ class GrailsReader implements OpenApiReader {
         return Holders.config?.swagger as NavigableMap
     }
 
-    private SchemaModel findSchemaModelInOpenAPI(Class clazz) {
+    private Schema findSchemaInOpenAPI(Class clazz) {
         String className = schemaNameFromClass(clazz)
         return openAPI.components?.getSchemas()?.get(className)
     }
@@ -507,9 +582,9 @@ class GrailsReader implements OpenApiReader {
     @CompileStatic
     private static findControllerMethodFromAction(Class controllerClass, String actionName) {
         return controllerClass.methods
-                .findAll { it.name == actionName }
-                .sort { it.parameterCount }
-                .last()
+            .findAll { it.name == actionName }
+            .sort { it.parameterCount }
+            .last()
     }
 
     @CompileStatic
@@ -518,7 +593,7 @@ class GrailsReader implements OpenApiReader {
     }
 
     @CompileStatic
-    private static String getSchemaRef(SchemaModel schema) {
+    private static String getSchemaRef(Schema schema) {
         return "#/components/schemas/${schema.name}"
     }
 

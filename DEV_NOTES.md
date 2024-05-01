@@ -16,17 +16,20 @@ https://docs.github.com/en/packages/working-with-a-github-packages-registry/work
 
 ## Development Progress
 
- - [x] Complete mapping of `@Tag`
- - [x] Complete mapping of `@Operation`
- - [x] Complete mapping of `@RequestBody`
- - [x] Complete mapping of `@ApiResponse`
- - [ ] Complete mapping of `@Content`
- - [ ] Complete mapping of `@MediaType`
+ - [x] Support `@Tag`
+ - [x] Support `@Operation`
+ - [x] Support `@RequestBody`
+ - [x] Support `@ApiResponse`
+ - [x] Support `@Content`
+ - [x] Support `@MediaType`
+ - [x] Support `@Encoding`
+ - [x] Support `@Header`
  - [x] Complete mapping of `@Schema` (as good as completed)
    - [x] `@Schema` on model level overwrites `@Schema` on operation level
- - [ ] Support `@ArraySchema`
- - [x] Complete mapping of `@Parameter`
- - [ ] Complete support of `Info` from config
+ - [x] Support `@ArraySchema`
+ - [x] Support of `@Parameter`
+ - [x] Support of `@Link`
+ - [ ] Support of `Info` from config
  - [ ] Support `@Schema` on class level
  - [ ] Support `@Schema` on class property level
  - [ ] Support `@Callback`

@@ -3,28 +3,33 @@
 ## Usage
 
 ### Configuration
+### Swagger configuration
+
+Information about the swagger setup itself ([OpenAPI object](https://github.com/OAI/OpenAPI-Specification/blob/3.1.0/versions/3.1.0.md#oasObject) and [Info object](https://github.com/OAI/OpenAPI-Specification/blob/3.1.0/versions/3.1.0.md#infoObject)) can be configured
+through the Grails runtime configuration files (e.g `/grails-app/conf/application.yml)
 
 ### Class and method annotation
 ```groovy
-@Tag(name = 'MyController', description = 'A test controller')
+@Tag(name = 'MyController', description = 'An example controller')
 class MyController {
+
     @Operation(
-            summary = 'A test method summary',
-            description = 'A longer description of this test method',
-            parameters = [
-                    @Parameter(name = 'len', description = 'length of random string to generate', in = ParameterIn.QUERY, required = true, allowEmptyValue = true, schema = @Schema(type = 'integer')),
-                    @Parameter(name = 'characters', description = 'characters to generate string from', in = ParameterIn.QUERY, style = ParameterStyle.SPACEDELIMITED, required = true, allowEmptyValue = true)
-            ],
-            responses = [
-                    @ApiResponse(description = 'A random string', responseCode = '200'),
-                    @ApiResponse(description = 'error response', responseCode = '400', content = [
-                            @Content(mediaType = "application/json", schema = @Schema(implementation = TestErrorResponse))
-                    ]
-                    )
-            ]
+        summary = 'An example controller',
+        description = 'This controller is used to illustrate the plugin capabilities and how to use annotations.',
+        parameters = [
+            @Parameter(name = 'cmd', in = ParameterIn.PATH)
+        ],
+        responses = [
+            @ApiResponse(responseCode = '200', description = 'All went OK', content = [
+                @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MyResponseClass))
+            ]),
+            @ApiResponse(responseCode = '400', description = 'Some validation error occured. Returns a list of said validation errors.', content = [
+                @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(items = @Schema(implementation = MyValidationError)))
+            ])
+        ]
     )
-    def test(int len, List<String> characters) {
-        render(text: "random string")
+    def test(MyCommand cmd) {
+        render(text: "All OK", status: HttpStatus.OK)
     }
 }
 ```
