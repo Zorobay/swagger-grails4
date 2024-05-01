@@ -29,7 +29,7 @@ https://docs.github.com/en/packages/working-with-a-github-packages-registry/work
  - [x] Support `@ArraySchema`
  - [x] Support of `@Parameter`
  - [x] Support of `@Link`
- - [ ] Support of `Info` from config
+ - [x] Support of `Info` from config
  - [ ] Support `@Schema` on class level
  - [ ] Support `@Schema` on class property level
  - [ ] Support `@Callback`

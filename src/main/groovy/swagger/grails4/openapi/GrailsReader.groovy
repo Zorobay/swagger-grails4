@@ -546,8 +546,15 @@ class GrailsReader implements OpenApiReader {
     }
 
     private OpenAPI buildOpenAPI() {
-        // TODO fetch more info from config
-        Info info = new Info(title: swaggerConfig?.info?.title, description: swaggerConfig?.info?.description)
+        Info info = new Info(
+            title: swaggerConfig?.info?.title,
+            summary: swaggerConfig?.info?.summary,
+            description: swaggerConfig?.info?.description,
+            termsOfService: swaggerConfig?.info?.termsOfService,
+            contact: swaggerConfig?.info?.contact,
+            license: swaggerConfig?.info?.license,
+            version: swaggerConfig?.info?.version
+        )
         return new OpenAPI(info: info)
     }
 

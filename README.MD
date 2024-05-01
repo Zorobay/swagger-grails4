@@ -6,7 +6,24 @@
 ### Swagger configuration
 
 Information about the swagger setup itself ([OpenAPI object](https://github.com/OAI/OpenAPI-Specification/blob/3.1.0/versions/3.1.0.md#oasObject) and [Info object](https://github.com/OAI/OpenAPI-Specification/blob/3.1.0/versions/3.1.0.md#infoObject)) can be configured
-through the Grails runtime configuration files (e.g `/grails-app/conf/application.yml)
+through the Grails runtime configuration files (e.g `/grails-app/conf/application.yml`):
+
+```yml
+swagger:
+  info:
+    title: Sample Pet Store App
+    summary: A pet store manager.
+    description: This is a sample server for a pet store.
+    termsOfService: https://example.com/terms/
+    contact:
+      name: API Support
+      url: https://www.example.com/support
+      email: support@example.com
+    license:
+      name: Apache 2.0
+      url: https://www.apache.org/licenses/LICENSE-2.0.html
+    version: 1.0.1
+```
 
 ### Class and method annotation
 ```groovy

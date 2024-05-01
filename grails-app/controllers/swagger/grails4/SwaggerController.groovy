@@ -10,7 +10,6 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.models.OpenAPI
 import org.springframework.http.MediaType
 
-@Tag(name = "Swagger", description = "A fun little controller")
 class SwaggerController {
 
     OpenApiService openApiService
