@@ -1,95 +1,128 @@
----
-grails:
-    profile: web-plugin
-    codegen:
-        defaultPackage: swagger.grails4
-    gorm:
-        reactor:
-            # Whether to translate GORM events into Reactor events
-            # Disabled by default for performance reasons
-            events: false
-info:
-    app:
-        name: '@info.app.name@'
-        version: '@info.app.version@'
-        grailsVersion: '@info.app.grailsVersion@'
-spring:
-    jmx:
-        unique-names: true
-    main:
-        banner-mode: "off"
-    groovy:
-        template:
-            check-template-location: false
-    devtools:
-        restart:
-            additional-exclude:
-                - '*.gsp'
-                - '**/*.gsp'
-                - '*.gson'
-                - '**/*.gson'
-                - 'logback.groovy'
-                - '*.properties'
-management:
-    endpoints:
-        enabled-by-default: false
+swagger:
+  openapi: '3.1.1' # Uses default value from OpenAPI class if not provided
+  servers:
+    - url: https://development.gigantic-server.com/v1
+      description: Development server
+    - url: https://staging.gigantic-server.com/v1
+      description: Staging server
+  paths: # Not implemented, as it is buildt automatically from swagger annotations
+  webhooks: # Not yet implemented
+  tags: # Not implemented, also built from swagger annotations
+  components:
+    securitySchemes: # This is the only component that is currently configureable directly from config files (the rest are built from annotations)
+      BearerToken:
+        type: "apiKey"
+  security:
+    - "BearerToken"
+  externalDocs:
+    description: Find more info here
+    url: https://example.com
+  info:
+    title: Sample Pet Store App
+    summary: A pet store manager.
+    description: This is a sample server for a pet store.
+    termsOfService: https://example.com/terms/
+    contact:
+      name: API Support
+      url: https://www.example.com/support
+      email: support@example.com
+    license:
+      name: Apache 2.0
+      url: https://www.apache.org/licenses/LICENSE-2.0.html
+    version: 1.0.1
 
 ---
 grails:
-    mime:
-        disable:
-            accept:
-                header:
-                    userAgents:
-                        - Gecko
-                        - WebKit
-                        - Presto
-                        - Trident
-        types:
-            all: '*/*'
-            atom: application/atom+xml
-            css: text/css
-            csv: text/csv
-            form: application/x-www-form-urlencoded
-            html:
-              - text/html
-              - application/xhtml+xml
-            js: text/javascript
-            json:
-              - application/json
-              - text/json
-            multipartForm: multipart/form-data
-            pdf: application/pdf
-            rss: application/rss+xml
-            text: text/plain
-            hal:
-              - application/hal+json
-              - application/hal+xml
-            xml:
-              - text/xml
-              - application/xml
-    urlmapping:
-        cache:
-            maxsize: 1000
-    controllers:
-        defaultScope: singleton
-    converters:
-        encoding: UTF-8
-    views:
-        default:
-            codec: html
-        gsp:
-            encoding: UTF-8
-            htmlcodec: xml
-            codecs:
-                expression: html
-                scriptlet: html
-                taglib: none
-                staticparts: none
+  profile: web-plugin
+  codegen:
+    defaultPackage: swagger.grails4
+  gorm:
+    reactor:
+      # Whether to translate GORM events into Reactor events
+      # Disabled by default for performance reasons
+      events: false
+info:
+  app:
+    name: '@info.app.name@'
+    version: '@info.app.version@'
+    grailsVersion: '@info.app.grailsVersion@'
+spring:
+  jmx:
+    unique-names: true
+  main:
+    banner-mode: "off"
+  groovy:
+    template:
+      check-template-location: false
+  devtools:
+    restart:
+      additional-exclude:
+        - '*.gsp'
+        - '**/*.gsp'
+        - '*.gson'
+        - '**/*.gson'
+        - 'logback.groovy'
+        - '*.properties'
 management:
-    endpoints:
-        jmx:
-            unique-names: true
+  endpoints:
+    enabled-by-default: false
+
+---
+grails:
+  mime:
+    disable:
+      accept:
+        header:
+          userAgents:
+            - Gecko
+            - WebKit
+            - Presto
+            - Trident
+    types:
+      all: '*/*'
+      atom: application/atom+xml
+      css: text/css
+      csv: text/csv
+      form: application/x-www-form-urlencoded
+      html:
+        - text/html
+        - application/xhtml+xml
+      js: text/javascript
+      json:
+        - application/json
+        - text/json
+      multipartForm: multipart/form-data
+      pdf: application/pdf
+      rss: application/rss+xml
+      text: text/plain
+      hal:
+        - application/hal+json
+        - application/hal+xml
+      xml:
+        - text/xml
+        - application/xml
+  urlmapping:
+    cache:
+      maxsize: 1000
+  controllers:
+    defaultScope: singleton
+  converters:
+    encoding: UTF-8
+  views:
+    default:
+      codec: html
+    gsp:
+      encoding: UTF-8
+      htmlcodec: xml
+      codecs:
+        expression: html
+        scriptlet: html
+        taglib: none
+        staticparts: none
+management:
+  endpoints:
+    jmx:
+      unique-names: true
 
 server:
   port: 8089

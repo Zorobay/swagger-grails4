@@ -546,7 +546,22 @@ class GrailsReader implements OpenApiReader {
     }
 
     private OpenAPI buildOpenAPI() {
-        Info info = new Info(
+        OpenAPI openApi = new OpenAPI(
+            info: getInfoFromConfig(),
+            servers: swaggerConfig?.servers ?: [],
+            components: swaggerConfig?.components,
+            security: swaggerConfig?.security ?: [],
+            externalDocs: swaggerConfig?.externalDocs
+        )
+        if (swaggerConfig?.openapi) {
+            // Only override default value if provided
+            openApi.setOpenapi(swaggerConfig?.openapi as String)
+        }
+        return openApi
+    }
+
+    private Info getInfoFromConfig() {
+        return new Info(
             title: swaggerConfig?.info?.title,
             summary: swaggerConfig?.info?.summary,
             description: swaggerConfig?.info?.description,
@@ -555,7 +570,6 @@ class GrailsReader implements OpenApiReader {
             license: swaggerConfig?.info?.license,
             version: swaggerConfig?.info?.version
         )
-        return new OpenAPI(info: info)
     }
 
     private NavigableMap getSwaggerConfig() {

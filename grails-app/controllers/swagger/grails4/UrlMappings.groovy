@@ -10,9 +10,6 @@ class UrlMappings {
             }
         }
 
-
-        get "/something/else"(controller: 'myDope', action: 'test')
-
         get "/swagger/"(controller: 'swagger', action: 'index')
         get "/swagger/ui"(controller: 'swagger', action: 'ui')
         get "/swagger/openApiDocument"(controller: 'swagger', action: 'openApiDocument')

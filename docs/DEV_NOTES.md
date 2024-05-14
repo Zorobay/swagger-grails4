@@ -11,8 +11,15 @@ https://github.com/swagger-api/swagger-core/wiki/Swagger-2.X---Annotations
 
 https://github.com/swagger-api/swagger-ui/releases/tag/v5.10.3
 
-## Publishing
+## Publishing to Github Packages
 https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-gradle-registry
+
+## Publishing to Maven Central
+https://central.sonatype.org/register/central-portal/#managing-your-credentials
+
+1. Register an account at https://central.sonatype.com/
+2. Register a namespace: https://central.sonatype.org/register/namespace/
+3.
 
 ## Development Progress
 
