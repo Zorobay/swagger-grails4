@@ -8,7 +8,7 @@ buildscript {
     }
 }
 
-version "0.1"
+version "0.0.2"
 group "swagger.grails4"
 
 apply plugin: "eclipse"
@@ -56,9 +56,9 @@ dependencies {
 
     // =============== Swagger =========================
     // https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
-    implementation group: 'io.swagger.core.v3', name: 'swagger-annotations', version: '2.2.19'
+    implementation group: 'io.swagger.core.v3', name: 'swagger-annotations', version: '2.2.21'
     // https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-integration
-    implementation group: 'io.swagger.core.v3', name: 'swagger-integration', version: '2.2.19'
+    implementation group: 'io.swagger.core.v3', name: 'swagger-integration', version: '2.2.21'
 
     // ============ Paranamer (lookup parameter names from method) =================
     // https://mvnrepository.com/artifact/com.thoughtworks.paranamer/paranamer
@@ -108,22 +108,22 @@ publishing {
         gpr(MavenPublication) {
             groupId = 'io.github.zorobay'
             artifactId = 'swagger-grails4'
-            version = '0.0.1'
+            version = getVersion()
             from components.java
         }
     }
 }
 
 // ==== Publishing to maven central configs ====
-task javadocJar(type: Jar) {
-    classifier = 'javadoc'
-    from javadoc
-}
-
-task sourcesJar(type: Jar) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
-}
+//task javadocJar(type: Jar) {
+//    classifier = 'javadoc'
+//    from javadoc
+//}
+//
+//task sourcesJar(type: Jar) {
+//    classifier = 'sources'
+//    from sourceSets.main.allSource
+//}
 
 artifacts {
     archives javadocJar, sourcesJar
