@@ -23,6 +23,8 @@ Personal notes helping with development: [DEV NOTES](docs/DEV_NOTES.md)
 
 ### Local development
 
+**This method is better: https://medium.com/wizpanda/another-way-of-adding-local-grails-plugin-to-a-grails-app-using-the-gradle-build-tool-d60ddaf326cb**
+
 Testing the plugin locally should be easy. First, run the command:
 
 ```shell

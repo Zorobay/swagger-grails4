@@ -6,7 +6,7 @@ through the Grails runtime configuration files (e.g `/grails-app/conf/applicatio
 Below is an example of a configuration. Note that the entire OpenAPI spec if not yet implemented.
 ```yaml
 swagger:
-    openapi: '3.1.1' # Uses default value from OpenAPI class if not provided
+    # openapi: '3.1.1' # Should rarely be used! Uses default value from OpenAPI class if not provided.
     servers:
         - url: https://development.gigantic-server.com/v1
           description: Development server
