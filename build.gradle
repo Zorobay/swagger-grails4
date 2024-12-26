@@ -51,8 +51,13 @@ dependencies {
     console "org.grails:grails-console"
     profile "org.grails.profiles:web-plugin"
     compile "com.bertramlabs.plugins:asset-pipeline-grails:3.0.10"
+
     testCompile "org.grails:grails-gorm-testing-support"
     testCompile "org.grails:grails-web-testing-support"
+//
+//    testCompile group: 'org.grails', name: 'grails-testing-support', version: grailsTestingSupportVersion
+//    testImplementation platform("org.spockframework:spock-bom:$spockVersion")
+//    testImplementation "org.spockframework:spock-core:$spockVersion"
 
     // =============== Swagger =========================
     // https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations

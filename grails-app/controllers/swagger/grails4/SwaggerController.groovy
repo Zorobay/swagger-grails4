@@ -1,12 +1,6 @@
 package swagger.grails4
 
 import io.swagger.v3.core.util.Json
-import io.swagger.v3.oas.annotations.Operation
-import io.swagger.v3.oas.annotations.Parameter
-import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.Schema
-import io.swagger.v3.oas.annotations.responses.ApiResponse
-import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.models.OpenAPI
 import org.springframework.http.MediaType
 
@@ -19,7 +13,7 @@ class SwaggerController {
     }
 
     def ui() {
-        render view: '/swagger/index'
+        render view: '/swagger/swagger-ui'
     }
 
     def openApiDocument() {

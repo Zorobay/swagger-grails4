@@ -32,6 +32,7 @@ import io.swagger.v3.oas.annotations.servers.ServerVariable as ServerVariableAnn
 import io.swagger.v3.oas.annotations.tags.Tag as TagAnnotation
 import io.swagger.v3.oas.integration.api.OpenAPIConfiguration
 import io.swagger.v3.oas.integration.api.OpenApiReader
+import io.swagger.v3.oas.models.Components
 import io.swagger.v3.oas.models.ExternalDocumentation
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.Operation
@@ -52,7 +53,10 @@ import io.swagger.v3.oas.models.parameters.Parameter
 import io.swagger.v3.oas.models.parameters.RequestBody
 import io.swagger.v3.oas.models.responses.ApiResponse
 import io.swagger.v3.oas.models.responses.ApiResponses
+import io.swagger.v3.oas.models.security.OAuthFlow
+import io.swagger.v3.oas.models.security.OAuthFlows
 import io.swagger.v3.oas.models.security.SecurityRequirement
+import io.swagger.v3.oas.models.security.SecurityScheme
 import io.swagger.v3.oas.models.servers.Server
 import io.swagger.v3.oas.models.servers.ServerVariable
 import io.swagger.v3.oas.models.servers.ServerVariables
@@ -76,7 +80,6 @@ class GrailsReader implements OpenApiReader {
     private DefaultGrailsApplication grailsApplication
     private OpenAPI openAPI
     UrlMappingsHolder urlMappingsHolder
-
 
     GrailsReader(DefaultGrailsApplication grailsApplication) {
         this.grailsApplication = grailsApplication
@@ -102,7 +105,7 @@ class GrailsReader implements OpenApiReader {
                 Method method = findControllerMethodFromAction(controllerClass, actionName)
                 Operation operation = buildOperation(controllerArtifact, method)
                 if (operation) {
-                    operation.addTagsItem(tag.name)
+                    operation.tags ?: operation.addTagsItem(tag.name) // Add default tag if none are specified with @Operation(tags=[])
                     buildAndAddPathItem(controllerArtifact, method, operation)
                 }
             }
@@ -125,7 +128,7 @@ class GrailsReader implements OpenApiReader {
     private void buildAndAddPathItem(GrailsControllerClass controller, Method method, Operation operation) {
         PathItem pathItem = new PathItem()
         PathItem.HttpMethod httpMethod = PathItem.HttpMethod.GET
-        String url = ''
+        String url
         UrlMapping urlMapping = getUrlMappingOfAction(controller, method.name)
         if (urlMapping) {
             // TODO can we handle UrlMappings magic?
@@ -147,6 +150,7 @@ class GrailsReader implements OpenApiReader {
         if (operationAnnotation) {
             // TODO support callbacks
             Operation operation = new Operation()
+            operation.setTags(operationAnnotation.tags() as List<String>)
             operation.setSummary(operationAnnotation.summary())
             operation.setDescription(operationAnnotation.description())
             operation.setExternalDocs(buildExternalDocumentation(operationAnnotation.externalDocs()))
@@ -549,7 +553,7 @@ class GrailsReader implements OpenApiReader {
         OpenAPI openApi = new OpenAPI(
             info: getInfoFromConfig(),
             servers: swaggerConfig?.servers ?: [],
-            components: swaggerConfig?.components,
+            components: getComponentsFromConfig(),
             security: swaggerConfig?.security ?: [],
             externalDocs: swaggerConfig?.externalDocs
         )
@@ -570,6 +574,31 @@ class GrailsReader implements OpenApiReader {
             license: swaggerConfig?.info?.license,
             version: swaggerConfig?.info?.version
         )
+    }
+
+    private Components getComponentsFromConfig() {
+        Components components = new Components()
+        Map<String, Map> securitySchemes = swaggerConfig?.components?.securitySchemes
+        securitySchemes.each {String key, Map params ->
+            SecurityScheme securityScheme = new SecurityScheme(
+                type: SecurityScheme.Type.values().find {it.value == params.type},
+                description: params.description,
+                name: params.name,
+                in: SecurityScheme.In.values().find {it.value == params.in},
+                bearerFormat: params.bearerFormat,
+                flows: params.flows ? new OAuthFlows(params.flows as Map) : null
+            )
+            components.addSecuritySchemes(key, securityScheme)
+        }
+        return components
+    }
+
+    private List<SecurityRequirement> getSecurityRequirementsFromConfig() {
+        return swaggerConfig?.security?.collect { String key, List<String> val ->
+            SecurityRequirement securityRequirement = new SecurityRequirement()
+            securityRequirement.addList(key, val)
+            return securityRequirement
+        }
     }
 
     private NavigableMap getSwaggerConfig() {

@@ -18,7 +18,11 @@ swagger:
     components:
         securitySchemes: # This is the only component that is currently configureable directly from config files (the rest are built from annotations)
             BearerToken:
-              type: "apiKey"
+              type: "apiKey",
+              name: "my apiKey",
+              description: "A Bearer token for authentication",
+              in: "header",
+              bearerFormat: "JWT"
     security:
         - "BearerToken"
     externalDocs:
