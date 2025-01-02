@@ -21,6 +21,34 @@ https://central.sonatype.org/register/central-portal/#managing-your-credentials
 2. Register a namespace: https://central.sonatype.org/register/namespace/
 3.
 
+## Local test of plugin
+
+Add the following to `settings.gradle`:
+
+```gradle
+include ':foo-bar'
+// Relative path to foo-bar plugin
+project(':foo-bar').projectDir = new File('../foo-bar')
+```
+
+Now in `build.gradle` add:
+
+```gradle
+grails {
+    plugins {
+        compile project (':foo-bar')
+    }
+}
+// Another way
+dependencies {
+    // ... other dependencies
+    compile project (':foo-bar')
+}
+```
+
+
+Source: https://medium.com/wizpanda/another-way-of-adding-local-grails-plugin-to-a-grails-app-using-the-gradle-build-tool-d60ddaf326cb
+
 ## Development Progress
 
  - [x] Support `@Tag`
