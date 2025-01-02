@@ -1,10 +1,7 @@
 swagger:
   openapi: '3.1.1' # Uses default value from OpenAPI class if not provided
   servers:
-    - url: https://development.gigantic-server.com/v1
-      description: Development server
-    - url: https://staging.gigantic-server.com/v1
-      description: Staging server
+    - url: 'http://localhost:8089'
   paths: # Not implemented, as it is buildt automatically from swagger annotations
   webhooks: # Not yet implemented
   tags: # Not implemented, also built from swagger annotations

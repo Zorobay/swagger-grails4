@@ -8,6 +8,12 @@ import grails.web.Action
 import grails.web.Controller
 import io.swagger.v3.oas.annotations.ExternalDocumentation as ExternalDocumentationAnnotation
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.enums.Explode
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema as SchemaAnnotation
+import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.models.ExternalDocumentation
 import io.swagger.v3.oas.models.OpenAPI
@@ -18,6 +24,7 @@ import io.swagger.v3.oas.models.security.SecurityScheme
 import org.grails.config.PropertySourcesConfig
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import specutils.GrailsApplicationAwareSpec
 import spock.lang.Shared
 import spock.lang.Specification
@@ -27,7 +34,8 @@ class GrailsReaderSpec extends Specification implements GrailsApplicationAwareSp
     @Shared
     List<MockUrlMapping> URL_MAPPINGS = [
         new MockUrlMapping(TestController.logicalPropertyName, 'putAction', HttpMethod.PUT.name()),
-        new MockUrlMapping(TestController.logicalPropertyName, 'getAction', HttpMethod.GET.name())
+        new MockUrlMapping(TestController.logicalPropertyName, 'getAction', HttpMethod.GET.name()),
+        new MockUrlMapping(TestController.logicalPropertyName, 'getActionExplode', HttpMethod.GET.name())
     ]
 
     void setupSpec() {
@@ -238,7 +246,7 @@ class GrailsReaderSpec extends Specification implements GrailsApplicationAwareSp
             res.externalDocs.url == 'http://www.url.com'
     }
 
-    void 'read: overrides "openapi" if provided'() {
+    void 'read: overrides "openapi" if provided in configs'() {
         given:
             GrailsReader grailsReader = createGrailsReader()
             Map swaggerConfigs = [openapi: 'override me']
@@ -249,7 +257,7 @@ class GrailsReaderSpec extends Specification implements GrailsApplicationAwareSp
             res.openapi == 'override me'
     }
 
-    void 'read: handles no configs'() {
+    void 'read: handles missing configs'() {
         given:
             GrailsReader grailsReader = createGrailsReader()
             Map swaggerConfigs = [:]
@@ -282,17 +290,47 @@ class GrailsReaderSpec extends Specification implements GrailsApplicationAwareSp
             String controllerName = TestController.logicalPropertyName
             String putUrl = "/${controllerName}/putAction"
             String getUrl = "/${controllerName}/getAction"
+            String getExplodeUrl = "/${controllerName}/getActionExplode"
         when:
             OpenAPI res = grailsReader.read([TestController] as Set<Class<?>>, [:])
         then:
-            res.paths.size() == 2
+            res.paths.size() == 3
             with(res.paths[putUrl].put) {
                 it.tags == ['t1', 't2']
                 it.summary == 'action summary'
                 it.description == 'action description'
+                it.externalDocs.description == 'ext. docs desc.'
+                it.externalDocs.url == 'http://www.extdocs.com'
+                it.operationId == 'op-id'
+                it.requestBody.description == 'request body desc.'
+                it.requestBody.required == true
             }
+            // Test building parameters from command object
             with(res.paths[getUrl].get) {
                 it.tags == ['testController'] // Gets tag from @Tag annotation if missing from operation
+                it.parameters.size() == 3
+                //TestEnum testEnum
+                //        String name
+                //        List<Integer> numbers
+                it.parameters.any { it.name == 'testEnum' }
+                with(it.parameters.find { it.name == 'testEnum' }) {
+                    it.name == 'testEnum'
+                    it.description == 'testEnum desc.'
+                    it.example == 'SECOND'
+                    it.in == ParameterIn.PATH.name()
+                }
+//                it.parameters[0].schema == res.schema('cmd')
+                // test command parameters
+            }
+            with(res.paths[getExplodeUrl].get) {
+                it.parameters.size() == 3
+                it.parameters.any { it.name == 'testEnum' }
+                with(it.parameters.find { it.name == 'testEnum' }) {
+                    it.name == 'testEnum'
+                    it.description == 'testEnum desc.'
+                    it.example == 'SECOND'
+                    it.in == ParameterIn.PATH.name()
+                }
             }
     }
 
@@ -367,6 +405,15 @@ class GrailsReaderSpec extends Specification implements GrailsApplicationAwareSp
             !res.extensions
     }
 
+    void 'buildSchemaArgs: build correct args from Schema-annotation'() {
+        given:
+            SchemaAnnotation schemaAnnotation = Mock(SchemaAnnotation) {
+                required() >> true
+                requiredMode() >> io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED
+                requiredProperties() >> []
+            }
+    }
+
     GrailsReader createGrailsReader() {
         return new GrailsReader(getGrailsApplication())
     }
@@ -380,15 +427,37 @@ class GrailsReaderSpec extends Specification implements GrailsApplicationAwareSp
 
         static String logicalPropertyName = 'grailsReaderSpec$Test'
 
-        @Operation(method = 'PUT', tags = ['t1', 't2'], summary = 'action summary', description = 'action description')
+        @Operation(method = 'PUT', tags = ['t1', 't2'], summary = 'action summary', description = 'action description',
+            externalDocs = @ExternalDocumentationAnnotation(
+                description = 'ext. docs desc.', url = 'http://www.extdocs.com'
+            ),
+            operationId = 'op-id',
+            requestBody = @RequestBody(
+                description = 'request body desc.', content = [
+                    @Content(
+                        mediaType = MediaType.APPLICATION_JSON_VALUE
+                    ), @Content()
+                ], required = true
+            )
+        )
         @Action
-        void putAction() {
+        void putAction(TestEnum ejnum, TestClass testClass) {
             render(status: HttpStatus.OK)
         }
 
-        @Operation(method = 'GET')
+        @Operation(method = 'GET', parameters = [
+            @Parameter(name = 'cmd', in = ParameterIn.PATH)
+        ])
         @Action
-        void getAction() {
+        void getAction(TestCommand cmd) {
+
+        }
+
+        @Operation(method = 'GET', parameters = [
+            @Parameter(name = 'anyName', in = ParameterIn.PATH, explode = Explode.TRUE)
+        ])
+        @Action
+        void getActionExplode(TestCommand anyName) {
 
         }
     }
@@ -415,13 +484,18 @@ class GrailsReaderSpec extends Specification implements GrailsApplicationAwareSp
     }
 
     private class SubClass {
-
         boolean isWorking = false
         Map<String, SubSubClass> aMap
     }
 
     private class SubSubClass {
-
         Double value
+    }
+
+    private class TestCommand {
+        @Parameter(description = 'testEnum desc.', example = 'SECOND')
+        TestEnum testEnum
+        String name
+        List<Integer> numbers
     }
 }

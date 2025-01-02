@@ -69,6 +69,7 @@ import swagger.grails4.helpers.MapHelper
 import swagger.grails4.helpers.ValueMapper
 import swagger.grails4.model.TypeAndFormat
 
+import java.lang.annotation.Annotation
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Parameter as JavaParameter
@@ -157,8 +158,8 @@ class GrailsReader implements OpenApiReader {
             operation.setOperationId(operationAnnotation.operationId())
             operation.setRequestBody(buildRequestBody(operationAnnotation.requestBody()))
             operation.setDeprecated(operationAnnotation.deprecated())
-            operation.setSecurity(buildSecurityRequirements(operationAnnotation.security()))
-            operation.setServers(buildServers(operationAnnotation.servers()))
+            operation.setSecurity(buildSecurityRequirements(operationAnnotation.security()) ?: null)
+            operation.setServers(buildServers(operationAnnotation.servers()) ?: null)
 
             Paranamer paranamer = new CachingParanamer(new BytecodeReadingParanamer())
             List<String> paramNames = paranamer.lookupParameterNames(method)
@@ -166,6 +167,7 @@ class GrailsReader implements OpenApiReader {
             // Build parameters of operation
             // Check if there is a single command object as parameter
             if (method.parameterCount == 1 && typeIsCommandObject(method.parameters.first().type)) {
+                // TODO REMOVE THIS, CAN USE EXPLODE INSTEAD
                 ParameterAnnotation parameterAnnotation = operationAnnotation.parameters()
                     .find { it.name() == paramNames[0] }
                 operation.setParameters(buildParametersFromCommand(parameterAnnotation, method.parameters.first().type))
@@ -189,15 +191,22 @@ class GrailsReader implements OpenApiReader {
     }
 
     private RequestBody buildRequestBody(RequestBodyAnnotation requestBodyAnnotation) {
-        RequestBody requestBody = new RequestBody()
-        requestBody.setDescription(requestBodyAnnotation?.description())
-        requestBody.setContent(buildContent(requestBodyAnnotation?.content()))
-        requestBody.setRequired(requestBodyAnnotation?.required())
-        return requestBody
+        if (requestBodyAnnotation.content()) {
+            RequestBody requestBody = new RequestBody()
+            requestBody.setDescription(requestBodyAnnotation.description())
+            requestBody.setContent(buildContent(requestBodyAnnotation.content()))
+            requestBody.setRequired(requestBodyAnnotation.required())
+            return requestBody
+        }
+        return null
     }
 
     private Parameter buildParameter(OperationAnnotation operationAnnotation, JavaParameter javaParam, String paramName) {
         ParameterAnnotation parameterAnnotation = operationAnnotation.parameters().find { it.name() == paramName }
+        return buildParameter(parameterAnnotation, javaParam.type, paramName)
+    }
+
+    private Parameter buildParameter(ParameterAnnotation parameterAnnotation, Class type, String paramName) {
         Parameter parameter = new Parameter()
         parameter.setName(parameterAnnotation?.name() ?: paramName)
         parameter.setIn(parameterAnnotation?.in()?.toString())
@@ -210,7 +219,7 @@ class GrailsReader implements OpenApiReader {
         parameter.setAllowReserved(parameterAnnotation?.allowReserved())
         parameter.setExamples(buildExamples(parameterAnnotation?.examples()))
         parameter.setExample(parameterAnnotation?.example() ?: null)
-        parameter.setSchema(buildSchema(parameterAnnotation?.schema(), javaParam.type))
+        parameter.setSchema(buildSchema(parameterAnnotation?.schema(), type))
         parameter.setContent(buildContent(parameterAnnotation?.content()))
         return parameter
     }
@@ -218,16 +227,17 @@ class GrailsReader implements OpenApiReader {
     private List<Parameter> buildParametersFromCommand(ParameterAnnotation parameterAnnotation, Class commandClass) {
         ParameterIn inType = parameterAnnotation.in()
         Map<String, Schema> properties = buildSchemaProperties(commandClass)
-
-        return properties.collect { String key, Schema val ->
-            Parameter parameter = new Parameter()
-            parameter.setName(key)
-            parameter.setDescription(val?.getDescription())
-            parameter.setExample(val?.example)
-            parameter.setIn(inType?.toString())
-            parameter.setSchema(val)
-            return parameter
-        }
+        return commandClass.metaClass.properties
+            .findAll { MetaProperty prop -> prop.name in properties.keySet() }
+            .collect { MetaProperty prop ->
+                ParameterAnnotation propertyParameterAnnotation = getMetaPropertyAnnotation(prop, ParameterAnnotation)
+                Parameter parameter = buildParameter(propertyParameterAnnotation, prop.type, prop.name)
+                if (!parameter.in) {
+                    // Inherit 'in' from Command-object
+                    parameter.setIn(inType.name())
+                }
+                return parameter
+            }
     }
 
     private Map<String, Example> buildExamples(ExampleAnnotation[] exampleAnnotations) {
@@ -469,7 +479,7 @@ class GrailsReader implements OpenApiReader {
             maxItems             : null, // from @ArraySchema
             minItems             : null, // from @ArraySchema
             uniqueItems          : null, // from @ArraySchema
-            required             : schemaAnnotation?.requiredProperties(),
+            required             : schemaAnnotation?.requiredProperties() ?: null,
             type                 : type,
             not                  : buildSchema(schemaAnnotation?.not()),
             description          : schemaAnnotation?.description(),
@@ -480,7 +490,7 @@ class GrailsReader implements OpenApiReader {
             externalDocs         : buildExternalDocumentation(schemaAnnotation?.externalDocs()),
             deprecated           : schemaAnnotation?.deprecated() ?: null,
             xml                  : null, // Does not exist in @Schema annotation
-            enum                 : schemaAnnotation?.allowableValues(),
+            enum                 : schemaAnnotation?.allowableValues() ?: null,
             discriminator        : discriminator,
             prefixItems          : prefixItems,
             allOf                : allOf,
@@ -540,7 +550,7 @@ class GrailsReader implements OpenApiReader {
             // Try to find schema for the property type
             Schema propSchema = findSchemaInOpenAPI(fieldType)
             if (!propSchema) {
-                SchemaAnnotation schemaAnnotation = prop.field?.field?.getAnnotation(SchemaAnnotation)
+                SchemaAnnotation schemaAnnotation = getMetaPropertyAnnotation(prop, SchemaAnnotation)
                 Type genericType = prop.field?.field?.genericType // Used to find out component class of Collections
                 propSchema = buildSchema(schemaAnnotation, fieldType, genericType)
             }
@@ -550,18 +560,23 @@ class GrailsReader implements OpenApiReader {
     }
 
     private OpenAPI buildOpenAPI() {
-        OpenAPI openApi = new OpenAPI(
-            info: getInfoFromConfig(),
-            servers: swaggerConfig?.servers ?: [],
-            components: getComponentsFromConfig(),
-            security: swaggerConfig?.security ?: [],
-            externalDocs: swaggerConfig?.externalDocs
-        )
-        if (swaggerConfig?.openapi) {
-            // Only override default value if provided
-            openApi.setOpenapi(swaggerConfig?.openapi as String)
+        try {
+            OpenAPI openApi = new OpenAPI(
+                info: getInfoFromConfig(),
+                servers: swaggerConfig?.servers ?: [],
+                components: getComponentsFromConfig(),
+                security: swaggerConfig?.security ?: [],
+                externalDocs: swaggerConfig?.externalDocs
+            )
+            if (swaggerConfig?.openapi) {
+                // Only override default value if provided
+                openApi.setOpenapi(swaggerConfig?.openapi as String)
+            }
+            return openApi
+        } catch (RuntimeException e) {
+            log.error("Exception occured reading swagger config data. Have you configured everything correct?", e)
+            throw e
         }
-        return openApi
     }
 
     private Info getInfoFromConfig() {
@@ -579,12 +594,12 @@ class GrailsReader implements OpenApiReader {
     private Components getComponentsFromConfig() {
         Components components = new Components()
         Map<String, Map> securitySchemes = swaggerConfig?.components?.securitySchemes
-        securitySchemes.each {String key, Map params ->
+        securitySchemes.each { String key, Map params ->
             SecurityScheme securityScheme = new SecurityScheme(
-                type: SecurityScheme.Type.values().find {it.value == params.type},
+                type: SecurityScheme.Type.values().find { it.value == params.type },
                 description: params.description,
                 name: params.name,
-                in: SecurityScheme.In.values().find {it.value == params.in},
+                in: SecurityScheme.In.values().find { it.value == params.in },
                 bearerFormat: params.bearerFormat,
                 flows: params.flows ? new OAuthFlows(params.flows as Map) : null
             )
@@ -647,4 +662,7 @@ class GrailsReader implements OpenApiReader {
         return "#/components/schemas/${schema.name}"
     }
 
+    private static <T extends Annotation> T getMetaPropertyAnnotation(MetaProperty metaProperty, Class<T> annotation) {
+        return (metaProperty as MetaBeanProperty).field?.field?.getAnnotation(annotation)
+    }
 }
